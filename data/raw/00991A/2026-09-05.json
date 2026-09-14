@@ -1,0 +1,65 @@
+{
+  "pcf": {
+    "result": [
+      {
+        "id": 0,
+        "guid": null,
+        "postDate": null,
+        "ifUnitBuy": null,
+        "preBuyVal": null,
+        "nav": null,
+        "qIssue": null,
+        "qDiff": null,
+        "pnav": null,
+        "sharesPerUnit": null,
+        "pVal": null,
+        "mVal": null,
+        "cashDiff": null,
+        "actCashDiffDate": null,
+        "actCashDiff": null,
+        "actBuyValDate": null,
+        "actBuyVal": null,
+        "preQIssueDate": null,
+        "preQIssue": null,
+        "beneficiaryDate": null,
+        "beneficiaryNum": null,
+        "countnav_type": null,
+        "result": null,
+        "rate": null,
+        "t": null
+      }
+    ],
+    "status": 0,
+    "totalPage": 0,
+    "nowPage": 0,
+    "nextPage": null,
+    "total": null,
+    "responseStatus": null
+  },
+  "assets": {
+    "result": [
+      {
+        "fundID": null,
+        "twNameFull": null,
+        "ec002": null,
+        "etf002": null,
+        "ec038": null,
+        "dDate": null,
+        "pcf_FundNav": null,
+        "pcf_FundQissue": null,
+        "pcf_Fundpnav": null,
+        "result": null,
+        "diff": null,
+        "detail": null,
+        "summary": null,
+        "rate": null
+      }
+    ],
+    "status": 0,
+    "totalPage": 0,
+    "nowPage": 0,
+    "nextPage": null,
+    "total": null,
+    "responseStatus": null
+  }
+}
