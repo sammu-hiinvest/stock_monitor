@@ -1,0 +1,5 @@
+data/
+__pycache__/
+*.pyc
+.venv/
+Active_ETFs_All_Data.zip

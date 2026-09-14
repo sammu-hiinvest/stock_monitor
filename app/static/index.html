@@ -1,0 +1,1784 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>山姆台股觀測站</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+  :root {
+    --bg: #ffffff; --panel: #ffffff; --panel2: #f2f3f5; --border: #e1e3e8;
+    --text: #14161a; --muted: #6b7280; --accent: #1a2980; --up: #e53935; --down: #00897b;
+    --header-grad: linear-gradient(135deg, #1a2980 0%, #1f6fa8 50%, #26d0ce 100%);
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:"Segoe UI","Microsoft JhengHei",sans-serif; }
+
+  .sticky-top { position: sticky; top: 0; z-index: 100; background: var(--bg); }
+
+  /* 唯一保留鮮明色彩的地方：主標題列，其餘頁面背景一律白色 */
+  header {
+    padding:20px 28px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;
+    background: var(--header-grad); color:#ffffff;
+  }
+  header h1 { margin:0; font-size:20px; color:#ffffff; text-shadow:0 1px 3px rgba(0,0,0,0.25); letter-spacing:0.5px; }
+  button { cursor:pointer; border:1px solid var(--border); background:var(--panel2); color:var(--text); border-radius:8px; padding:8px 14px; font-size:13px; }
+  button:hover { border-color:var(--accent); }
+  button.primary { background:#ffffff; border-color:#ffffff; color:var(--accent); font-weight:700; }
+  button.primary:hover { border-color:#ffffff; opacity:0.92; }
+  button.primary:disabled { opacity:0.6; }
+  #status { color:rgba(255,255,255,0.9); font-size:12px; margin-left:8px; }
+
+  .mainnav { display:flex; gap:8px; padding:12px 28px; border-bottom:1px solid var(--border); background:var(--bg); }
+  .navlink { border:1px solid var(--border); background:transparent; color:var(--muted); border-radius:8px; padding:7px 14px; font-size:13px; cursor:pointer; }
+  .navlink.active { background:var(--panel2); color:var(--text); border-color:var(--accent); }
+
+  .tabs { display:flex; flex-wrap:wrap; gap:8px; padding:16px 28px; border-bottom:1px solid var(--border); background:var(--bg); }
+  .tab { padding:8px 14px; border-radius:20px; border:1px solid var(--border); background:#ffffff; color:var(--text); cursor:pointer; font-size:13px; white-space:nowrap; }
+  .tab .code { color:var(--muted); font-size:11px; display:block; }
+  .tab.active { background:var(--accent); border-color:var(--accent); color:#ffffff; font-weight:600; }
+  .tab.active .code { color:#c9d3f5; }
+
+  main { padding:24px 28px 60px; max-width:1200px; margin:0 auto; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:20px; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; box-shadow:0 1px 2px rgba(16,24,40,0.04), 0 1px 3px rgba(16,24,40,0.06); }
+  .card .label { color:var(--muted); font-size:12px; margin-bottom:6px; }
+  .card .value { font-size:22px; font-weight:600; color:var(--text); }
+  .card .delta { font-size:12px; margin-top:4px; }
+  .up { color:var(--up); } .down { color:var(--down); }
+
+  .panel { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:18px; margin-bottom:20px; box-shadow:0 1px 2px rgba(16,24,40,0.04), 0 1px 3px rgba(16,24,40,0.06); }
+  .panel h2 { margin:0 0 14px; font-size:15px; color:var(--text); }
+  .chart-wrap { height:260px; }
+  .light-chart-box { background:#ffffff; }
+
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); color:var(--text); }
+  th { color:var(--muted); font-weight:600; font-size:12px; background:#f7f8fa; }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  tr:hover td { background:#f5f6fa; }
+  .badge { font-size:11px; padding:1px 6px; border-radius:10px; margin-left:6px; }
+  .badge.new { background:rgba(0,137,123,0.12); color:var(--down); }
+  .badge.out { background:rgba(229,57,53,0.12); color:var(--up); }
+
+  .toolbar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+  select, input[type=date], input[type=text] { background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:6px 8px; font-size:13px; }
+  .empty { color:var(--muted); font-size:13px; padding:20px 0; text-align:center; }
+  .stat-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; margin-bottom:6px; }
+  .page-note { color:var(--muted); font-size:12px; line-height:1.6; padding:10px 14px; margin-bottom:16px; border:1px solid var(--border); border-radius:8px; background:var(--panel2); }
+  .split-row { display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start; }
+  .split-row .chart-col { flex:1.3; min-width:280px; }
+  .split-row .table-col { flex:1; min-width:240px; }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <div>
+      <h1>山姆台股觀測站</h1>
+    </div>
+    <div>
+      <button class="primary" id="fetchNowBtn">立即抓取最新資料</button>
+      <span id="status"></span>
+    </div>
+  </header>
+
+  <nav class="mainnav">
+    <button class="navlink active" data-view="etf">ETF 總覽</button>
+    <button class="navlink" data-view="stock">個股跨 ETF 比較</button>
+    <button class="navlink" data-view="txo">台指選擇權</button>
+    <button class="navlink" data-view="futures">大盤期貨</button>
+    <button class="navlink" data-view="bonds">債市</button>
+    <button class="navlink" data-view="macros">Macros</button>
+    <button class="navlink" data-view="auctions">Bond Auction</button>
+  </nav>
+
+  <div class="tabs" id="tabs"></div>
+</div>
+
+<main>
+<div id="etfView">
+  <div class="page-note">資料來源：各投信官網「申購買回清單 (PCF)」，僅追蹤下列 8 檔主動式 ETF。排程更新時間：每個交易日 17:00 自動抓取最新一期資料。</div>
+
+  <div class="cards" id="cards"></div>
+
+  <div class="panel">
+    <div class="toolbar">
+      <h2 style="margin:0;">每日持股變動摘要</h2>
+      <span style="flex:1"></span>
+      <span id="dailyChangesDateInfo" style="color:var(--muted); font-size:12px;"></span>
+    </div>
+    <div id="dailyChangesWrap"></div>
+  </div>
+
+  <div class="panel">
+    <h2>每受益權單位淨值走勢</h2>
+    <div class="chart-wrap light-chart-box"><canvas id="navChart"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <h2>基金淨資產規模 / 發行單位數走勢</h2>
+    <div class="chart-wrap light-chart-box"><canvas id="sizeChart"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <div class="toolbar">
+      <h2 style="margin:0;">個股持股走勢</h2>
+      <span style="flex:1"></span>
+      <label style="color:var(--muted); font-size:12px;">選擇個股</label>
+      <select id="stockSelect"></select>
+    </div>
+    <div class="chart-wrap light-chart-box"><canvas id="stockChart"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <div class="toolbar">
+      <h2 style="margin:0;">持股明細</h2>
+      <span style="flex:1"></span>
+      <label style="color:var(--muted); font-size:12px;">資料日期</label>
+      <select id="dateSelect"></select>
+    </div>
+    <div id="holdingsTableWrap"></div>
+  </div>
+</div>
+
+<div id="stockCompareView" style="display:none;">
+  <div class="page-note">資料來源：整合上述 8 檔 ETF 的持股資料，並向證交所/櫃買中心查詢個股收盤價（個股價格首次查詢時即時補抓並快取，之後沿用快取資料）。</div>
+
+  <div class="panel">
+    <div class="toolbar">
+      <h2 style="margin:0;">個股跨 ETF 比較</h2>
+      <span style="flex:1"></span>
+      <label style="color:var(--muted); font-size:12px;">選擇個股</label>
+      <input type="text" list="stockListOptions" id="stockCompareInput" placeholder="輸入代碼或名稱搜尋" style="min-width:220px;">
+      <datalist id="stockListOptions"></datalist>
+    </div>
+    <div id="stockCompareBody"><div class="empty">請選擇一檔個股</div></div>
+  </div>
+</div>
+
+<div id="txoView" style="display:none;">
+  <div class="page-note">資料來源：期交所「選擇權每日交易行情下載」，僅採一般交易時段(不含盤後)資料。排程更新時間：每個交易日 17:00 自動抓取最近 5 個交易日資料。注意：到期月份篩選僅套用於下方「區間軌跡」與「履約價比較」兩張圖，合併走勢圖固定加總所有到期月份。</div>
+
+  <div class="panel">
+    <div class="toolbar">
+      <h2 style="margin:0;">台指選擇權 (TXO)</h2>
+      <span style="flex:1"></span>
+      <label style="color:var(--muted); font-size:12px;">到期月份</label>
+      <select id="txoMonthSelect"></select>
+      <label style="color:var(--muted); font-size:12px;">日期範圍</label>
+      <select id="txoStartSelect"></select>
+      <span style="color:var(--muted);">～</span>
+      <select id="txoEndSelect"></select>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Put / Call 未平倉量走勢</h2>
+    <div class="chart-wrap light-chart-box"><canvas id="txoOiChart"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <h2>Put / Call 成交量走勢</h2>
+    <div class="chart-wrap light-chart-box"><canvas id="txoVolumeChart"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <h2>最大未平倉量履約價區間軌跡 (支撐/壓力)</h2>
+    <div id="txoRangeWrap" class="light-chart-box" style="height:260px;"><canvas id="txoRangeChart"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <div class="toolbar">
+      <h2 style="margin:0;">履約價 Put/Call 比較</h2>
+      <span style="flex:1"></span>
+      <label style="color:var(--muted); font-size:12px;">指標</label>
+      <select id="txoCompareMetric">
+        <option value="oi">未平倉量</option>
+        <option value="volume">成交量</option>
+      </select>
+      <label style="color:var(--muted); font-size:12px;">日期 A</label>
+      <select id="txoCompareA"></select>
+      <label style="color:var(--muted); font-size:12px;">日期 B</label>
+      <select id="txoCompareB"></select>
+    </div>
+    <div id="txoCompareInner" class="light-chart-box" style="height:300px;"><canvas id="txoCompareChart"></canvas></div>
+  </div>
+</div>
+
+<div id="futuresView" style="display:none;">
+  <div class="page-note">資料來源：期交所「期貨每日交易行情下載」與「三大法人-區分各期貨契約」。排程更新時間：每個交易日 17:00 自動抓取最近 5 個交易日資料。散戶部位為反推估算：市場整體未平倉量(全部到期月份加總、一般盤)減去三大法人(自營商/投信/外資及陸資)合計，並非官方公布數字，僅供參考。</div>
+
+  <div class="panel">
+    <div class="toolbar">
+      <h2 style="margin:0;">大盤期貨 (TX 臺股期貨 / MTX 小型臺指 / TMF 微型臺指)</h2>
+      <span style="flex:1"></span>
+      <label style="color:var(--muted); font-size:12px;">資料日期</label>
+      <select id="futuresDateSelect"></select>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="toolbar">
+      <h2 style="margin:0;">三大法人淨未平倉部位 (TX 約當口數)</h2>
+      <span style="flex:1"></span>
+      <span id="futuresTableDateInfo" style="color:var(--muted); font-size:12px;"></span>
+    </div>
+    <div id="futuresTableWrap"></div>
+  </div>
+
+  <div class="panel">
+    <div class="toolbar">
+      <h2 style="margin:0;">歷史多空淨比例對比走勢 (未平倉量比重)</h2>
+      <span style="flex:1"></span>
+      <span id="futuresRatioCount" style="color:var(--muted); font-size:12px;"></span>
+    </div>
+    <div style="color:var(--muted); font-size:12px; margin-bottom:14px;">公式：(多單口數 − 空單口數) ÷ 當日整體未平倉量 × 100%</div>
+    <div style="display:flex; gap:20px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:280px;">
+        <h3 style="font-size:13px; color:var(--muted); margin:0 0 8px;">小型臺指期貨 (小台 MTX)</h3>
+        <div class="light-chart-box" style="height:260px;"><canvas id="futuresMtxRatioChart"></canvas></div>
+      </div>
+      <div style="flex:1; min-width:280px;">
+        <h3 style="font-size:13px; color:var(--muted); margin:0 0 8px;">微型臺指期貨 (微台 TMF)</h3>
+        <div class="light-chart-box" style="height:260px;"><canvas id="futuresTmfRatioChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="bondsView" style="display:none;">
+  <div class="page-note">資料來源：FRED (美國聖路易聯邦準備銀行公開資料庫)，公開 CSV 下載端點，不需要 API 金鑰。排程更新時間：每個交易日 17:00 自動抓取最近 10 天資料。首次使用需先回溯下載歷史資料（預設抓最近 2 年）：python scripts/backfill_bonds.py。</div>
+
+  <div class="cards" id="bondsStatCards"></div>
+  <div class="page-note" style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+    <span>百分位色階（相較過去2年歷史，由低至高）：</span>
+    <span style="color:#e53935; font-weight:700;">■ 0–25% 偏低</span>
+    <span style="color:#fbc02d; font-weight:700;">■ 25–50% 中低</span>
+    <span style="color:#43a047; font-weight:700;">■ 50–75% 中高</span>
+    <span style="color:#1565c0; font-weight:700;">■ 75–100% 偏高</span>
+  </div>
+
+  <div class="panel">
+    <div class="toolbar">
+      <h2 style="margin:0;">美債殖利率曲線</h2>
+      <span style="flex:1"></span>
+      <span id="bondsYieldCurveDate" style="color:var(--muted); font-size:12px;"></span>
+    </div>
+    <div class="chart-wrap light-chart-box"><canvas id="bondsYieldCurveChart"></canvas></div>
+    <div id="bondsYieldCurveTableWrap" style="margin-top:14px;"></div>
+  </div>
+
+  <div class="panel">
+    <h2>美債10年期 Term Premium 與 ACM Fitted Yield</h2>
+    <div style="color:var(--muted); font-size:12px; margin-bottom:10px;">
+      資料來源：紐約聯邦準備銀行(NY Fed) Adrian-Crump-Moench (ACM) 期限結構模型，
+      把10年期美債殖利率拆解成「期限溢酬(term premium)」與「風險中立利率預期路徑」
+      兩部分；ACM Fitted Yield 是模型配適出來的殖利率，理論上會很貼近實際殖利率。
+    </div>
+    <div class="chart-wrap light-chart-box"><canvas id="bondsAcmChart"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <h2>美債利差走勢 (2Y10Y ／ 3M10Y)</h2>
+    <div class="chart-wrap light-chart-box"><canvas id="bondsSpreadChart"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <h2>投資等級 vs 高收益公司債利差</h2>
+    <div class="chart-wrap light-chart-box"><canvas id="bondsCreditChart"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <h2>5Y5Y 遠期通膨預期 vs 5Y 損益兩平通膨率</h2>
+    <div class="chart-wrap light-chart-box"><canvas id="bondsInflationChart"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <h2>殖利率曲線隱含的政策利率預期走勢</h2>
+    <div style="color:var(--muted); font-size:12px; margin-bottom:10px;">
+      上半部：Fed funds futures 逐次FOMC會議機率分布(CME FedWatch)本身沒有免費、免金鑰的公開
+      資料源可用，這裡改用「預期假說」近似：3個月期／1年期美債殖利率 ≈ 市場預期該期間內的平均
+      政策利率，跟目前聯邦資金目標區間的落差可粗略反映市場對升降息的預期方向——
+      <strong>非官方期貨機率，僅供參考</strong>。
+    </div>
+    <div class="chart-wrap light-chart-box"><canvas id="bondsPolicyChart"></canvas></div>
+
+    <div style="color:var(--muted); font-size:12px; margin:14px 0 10px;">
+      下半部：<strong>Atlanta Fed「Market Probability Tracker」對最近一次到期窗口(近似最近一次
+      FOMC會議)的升息/降息機率</strong>，資料源是 CME 3個月期SOFR選擇權隱含的機率分布，由 Atlanta
+      Fed 官方整理成公開歷史資料 Excel 提供下載(非逆向工程端點)。跟上圖共用同一條時間軸，只畫出
+      實際有資料的時間點；<strong>僅供個人與教育用途參考，非官方預測</strong>。
+    </div>
+    <div class="chart-wrap light-chart-box"><canvas id="bondsMptChart"></canvas></div>
+  </div>
+
+</div>
+
+<div id="macrosView" style="display:none;">
+  <div class="page-note">資料來源：美國勞工統計局 (BLS) 官方 API + FRED，皆為公開資料、不需要 API 金鑰。CPI/PPI/非農就業/家戶調查用 BLS，PCE 用 FRED。</div>
+
+  <div class="cards" id="macroStatCards"></div>
+
+  <div class="panel">
+    <h2>美國 CPI／核心CPI 通膨率</h2>
+    <div class="toolbar"><h3 style="margin:0; font-size:13px; color:var(--muted);">年增率 (YoY)</h3></div>
+    <div class="chart-wrap light-chart-box"><canvas id="bondsCpiYoyChart"></canvas></div>
+    <div class="toolbar" style="margin-top:14px;"><h3 style="margin:0; font-size:13px; color:var(--muted);">月增率 (MoM)</h3></div>
+    <div class="chart-wrap light-chart-box"><canvas id="bondsCpiMomChart"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <h2>CPI 主要分項 通膨率</h2>
+    <div style="color:var(--muted); font-size:12px; margin-bottom:10px;">
+      食品飲料／住房／服飾／交通運輸／醫療保健／休閒娛樂／教育與通訊／其他商品與服務／能源，
+      點擊圖例可單獨顯示/隱藏某一分項。
+    </div>
+    <div class="toolbar"><h3 style="margin:0; font-size:13px; color:var(--muted);">年增率 (YoY)</h3></div>
+    <div class="chart-wrap light-chart-box"><canvas id="bondsCpiSubYoyChart"></canvas></div>
+    <div class="toolbar" style="margin-top:14px;"><h3 style="margin:0; font-size:13px; color:var(--muted);">月增率 (MoM)</h3></div>
+    <div class="chart-wrap light-chart-box"><canvas id="bondsCpiSubMomChart"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <h2>美國 PCE／核心PCE 通膨率</h2>
+    <div class="toolbar"><h3 style="margin:0; font-size:13px; color:var(--muted);">年增率 (YoY)</h3></div>
+    <div class="chart-wrap light-chart-box"><canvas id="bondsPceYoyChart"></canvas></div>
+    <div class="toolbar" style="margin-top:14px;"><h3 style="margin:0; font-size:13px; color:var(--muted);">月增率 (MoM)</h3></div>
+    <div class="chart-wrap light-chart-box"><canvas id="bondsPceMomChart"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <h2>美國 PPI／核心PPI 通膨率</h2>
+    <div class="toolbar"><h3 style="margin:0; font-size:13px; color:var(--muted);">年增率 (YoY)</h3></div>
+    <div class="chart-wrap light-chart-box"><canvas id="macroPpiYoyChart"></canvas></div>
+    <div class="toolbar" style="margin-top:14px;"><h3 style="margin:0; font-size:13px; color:var(--muted);">月增率 (MoM)</h3></div>
+    <div class="chart-wrap light-chart-box"><canvas id="macroPpiMomChart"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <h2>非農就業月增減 (依產業別)</h2>
+    <div style="color:var(--muted); font-size:12px; margin-bottom:10px;">
+      淺色堆疊長條為11個主要產業別的當月增減人數(千人)，深色線為非農就業總數增減，
+      點擊圖例可單獨顯示/隱藏某一產業。
+    </div>
+    <div class="chart-wrap light-chart-box"><canvas id="macroPayrollChart"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <h2>失業率／勞動力參與率／就業人口比</h2>
+    <div class="chart-wrap light-chart-box"><canvas id="macroHouseholdRatesChart"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <h2>失業原因</h2>
+    <div class="chart-wrap light-chart-box"><canvas id="macroUnemployReasonChart"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <h2>失業週數</h2>
+    <div class="chart-wrap light-chart-box"><canvas id="macroUnemployDurationChart"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <h2>兼職就業原因</h2>
+    <div class="chart-wrap light-chart-box"><canvas id="macroParttimeChart"></canvas></div>
+  </div>
+
+</div>
+
+<div id="auctionsView" style="display:none;">
+  <div class="page-note">資料來源：美國財政部 FiscalData 公開 API「Treasury Securities Auctions Data」，不需要 API 金鑰。Bid-to-Cover 比率為自行計算(總投標金額 ÷ 實際得標金額)，涵蓋近11年標售紀錄。</div>
+
+  <div class="panel">
+    <h2>10年期公債 (10-Year Note) 標售金額與 Bid-to-Cover 比率</h2>
+    <div class="chart-wrap light-chart-box"><canvas id="auction10yChart"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <h2>30年期公債 (30-Year Bond) 標售金額與 Bid-to-Cover 比率</h2>
+    <div class="chart-wrap light-chart-box"><canvas id="auction30yChart"></canvas></div>
+  </div>
+
+</div>
+</main>
+
+<script>
+const state = {
+  funds: [], ticker: null, navChart: null, sizeChart: null, stockChart: null, compareChart: null, allStocks: [],
+  txoInitialized: false, txoDates: [], txoMonths: [], txoOiChart: null, txoVolumeChart: null, txoRangeChart: null, txoCompareChart: null,
+  futuresInitialized: false, futuresDates: [], futuresMtxRatioChart: null, futuresTmfRatioChart: null,
+  bondsInitialized: false, bondsYieldCurveChart: null, bondsAcmChart: null, bondsSpreadChart: null, bondsCreditChart: null, bondsInflationChart: null, bondsPolicyChart: null, bondsMptChart: null,
+  macrosInitialized: false,
+  bondsCpiYoyChart: null, bondsCpiMomChart: null, bondsCpiSubYoyChart: null, bondsCpiSubMomChart: null, bondsPceYoyChart: null, bondsPceMomChart: null,
+  macroPpiYoyChart: null, macroPpiMomChart: null, macroPayrollChart: null, macroHouseholdRatesChart: null,
+  macroUnemployReasonChart: null, macroUnemployDurationChart: null, macroParttimeChart: null,
+  auctionsInitialized: false, auction10yChart: null, auction30yChart: null,
+};
+
+const fmtNum = (n, digits=0) => n === null || n === undefined ? '—' :
+  Number(n).toLocaleString('zh-TW', { maximumFractionDigits: digits, minimumFractionDigits: digits });
+const fmtPct = (n) => n === null || n === undefined ? '—' : `${Number(n).toFixed(2)}%`;
+
+// 白底圖表(ETF 總覽 + 台指選擇權頁)共用的文字/格線顏色
+const TXO_INK = '#111111';
+const TXO_GRID = '#dddddd';
+
+async function api(path, opts) {
+  const res = await fetch(path, opts);
+  if (!res.ok) throw new Error(`${path} -> ${res.status}`);
+  return res.json();
+}
+
+async function loadFunds() {
+  state.funds = await api('/api/funds');
+  const tabs = document.getElementById('tabs');
+  tabs.innerHTML = '';
+  state.funds.forEach(f => {
+    const el = document.createElement('div');
+    el.className = 'tab' + (f.ticker === state.ticker ? ' active' : '');
+    el.innerHTML = `${f.name}<span class="code">${f.ticker}</span>`;
+    el.onclick = () => selectTicker(f.ticker);
+    tabs.appendChild(el);
+  });
+  if (!state.ticker && state.funds.length) state.ticker = state.funds[0].ticker;
+}
+
+function renderCards() {
+  const f = state.funds.find(x => x.ticker === state.ticker);
+  const cards = document.getElementById('cards');
+  if (!f || !f.latest_date) {
+    cards.innerHTML = '<div class="empty">尚無資料，請先按「立即抓取最新資料」</div>';
+    return;
+  }
+  const diff = f.units_diff || 0;
+  const diffClass = diff > 0 ? 'up' : diff < 0 ? 'down' : '';
+  const diffSign = diff > 0 ? '+' : '';
+  cards.innerHTML = `
+    <div class="card"><div class="label">資料日期</div><div class="value">${f.latest_date}</div></div>
+    <div class="card"><div class="label">每受益權單位淨值</div><div class="value">${fmtNum(f.nav_per_unit, 2)}</div></div>
+    <div class="card"><div class="label">基金淨資產規模 (元)</div><div class="value">${fmtNum(f.net_asset_value)}</div></div>
+    <div class="card"><div class="label">已發行受益權單位數</div><div class="value">${fmtNum(f.total_units)}</div>
+      <div class="delta ${diffClass}">與前日 ${diffSign}${fmtNum(diff)}</div></div>
+  `;
+}
+
+function buildChart(ctx, existing, datasets, labels, yLabel) {
+  if (existing) existing.destroy();
+  return new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { labels: { color: TXO_INK } } },
+      scales: {
+        x: { ticks: { color: TXO_INK }, grid: { color: TXO_GRID } },
+        y: { ticks: { color: TXO_INK }, grid: { color: TXO_GRID }, title: { display: !!yLabel, text: yLabel, color: TXO_INK } },
+      },
+    },
+  });
+}
+
+async function renderCharts() {
+  const rows = await api(`/api/funds/${state.ticker}/summary?days=365`);
+  const labels = rows.map(r => r.date);
+
+  state.navChart = buildChart(
+    document.getElementById('navChart'), state.navChart,
+    [{ label: '每受益權單位淨值', data: rows.map(r => r.nav_per_unit), borderColor: '#000000', backgroundColor: 'rgba(0,0,0,0.06)', tension: 0.2, fill: true, pointRadius: 0 }],
+    labels,
+  );
+
+  state.sizeChart = buildChart(
+    document.getElementById('sizeChart'), state.sizeChart,
+    [
+      { label: '淨資產規模(元)', data: rows.map(r => r.net_asset_value), borderColor: '#26a69a', tension: 0.2, pointRadius: 0, yAxisID: 'y' },
+      { label: '發行單位數', data: rows.map(r => r.total_units), borderColor: '#ef5350', tension: 0.2, pointRadius: 0, yAxisID: 'y1' },
+    ],
+    labels,
+  );
+  state.sizeChart.options.scales.y1 = { position: 'right', ticks: { color: TXO_INK }, grid: { display: false } };
+  state.sizeChart.update();
+}
+
+function renderHoldingsTable(data) {
+  const wrap = document.getElementById('holdingsTableWrap');
+  if (!data.holdings.length) {
+    wrap.innerHTML = '<div class="empty">此日期尚無持股明細</div>';
+    return;
+  }
+  const rows = data.holdings.map(h => `
+    <tr>
+      <td>${h.code}</td>
+      <td>${h.name || ''}</td>
+      <td>${h.asset_type}</td>
+      <td class="num">${fmtNum(h.shares)}</td>
+      <td class="num">${fmtPct(h.weight_pct)}</td>
+    </tr>`).join('');
+  wrap.innerHTML = `
+    <table>
+      <thead><tr><th>代碼</th><th>名稱</th><th>類別</th><th class="num">股數/口數</th><th class="num">持股權重</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function renderDailyChanges(data) {
+  const wrap = document.getElementById('dailyChangesWrap');
+  const info = document.getElementById('dailyChangesDateInfo');
+
+  if (!data.prev_date) {
+    info.textContent = '';
+    wrap.innerHTML = '<div class="empty">沒有更早的資料可比較</div>';
+    return;
+  }
+  info.textContent = `${data.prev_date} → ${data.date}`;
+
+  const stats = `
+    <div class="stat-cards">
+      <div class="card"><div class="label">新增持股</div><div class="value">${data.added.length}</div></div>
+      <div class="card"><div class="label">剔除持股</div><div class="value">${data.removed.length}</div></div>
+      <div class="card"><div class="label">加碼(股數增加)</div><div class="value up">${data.increased.length}</div></div>
+      <div class="card"><div class="label">減碼(股數減少)</div><div class="value down">${data.decreased.length}</div></div>
+    </div>`;
+
+  const section = (title, rows, renderRow) => rows.length ? `
+    <h3 style="font-size:13px; color:var(--muted); margin:16px 0 6px;">${title} (${rows.length})</h3>
+    <table><tbody>${rows.map(renderRow).join('')}</tbody></table>` : '';
+
+  wrap.innerHTML = stats +
+    section('新增持股', data.added, h => `
+      <tr><td>${h.code}</td><td>${h.name || ''}</td>
+        <td class="num">${fmtNum(h.shares)} 股<span class="badge new">NEW</span></td></tr>`) +
+    section('剔除持股', data.removed, h => `
+      <tr><td>${h.code}</td><td>${h.name || ''}</td>
+        <td class="num">${fmtNum(h.shares)} 股<span class="badge out">OUT</span></td></tr>`) +
+    section('加碼', data.increased, h => `
+      <tr><td>${h.code}</td><td>${h.name || ''}</td>
+        <td class="num">${fmtNum(h.prev_shares)} → ${fmtNum(h.shares)} <span class="up">(+${fmtNum(h.share_diff)})</span></td></tr>`) +
+    section('減碼', data.decreased, h => `
+      <tr><td>${h.code}</td><td>${h.name || ''}</td>
+        <td class="num">${fmtNum(h.prev_shares)} → ${fmtNum(h.shares)} <span class="down">(${fmtNum(h.share_diff)})</span></td></tr>`);
+}
+
+async function refreshHoldingsAndChanges(date) {
+  const [holdingsData, changesData] = await Promise.all([
+    api(`/api/funds/${state.ticker}/holdings?date=${date}`),
+    api(`/api/funds/${state.ticker}/holdings/daily-changes?date=${date}`),
+  ]);
+  renderHoldingsTable(holdingsData);
+  renderDailyChanges(changesData);
+}
+
+async function loadDatesAndHoldings() {
+  const dates = await api(`/api/funds/${state.ticker}/dates`);
+  const dateSelect = document.getElementById('dateSelect');
+  dateSelect.innerHTML = dates.map(d => `<option value="${d}">${d}</option>`).join('');
+
+  if (dates.length) {
+    await refreshHoldingsAndChanges(dates[0]);
+  } else {
+    document.getElementById('holdingsTableWrap').innerHTML = '<div class="empty">尚無持股明細，請先抓取資料</div>';
+    document.getElementById('dailyChangesWrap').innerHTML = '<div class="empty">尚無資料</div>';
+  }
+
+  dateSelect.onchange = () => refreshHoldingsAndChanges(dateSelect.value);
+}
+
+async function renderStockChart(code) {
+  const data = await api(`/api/funds/${state.ticker}/stocks/${encodeURIComponent(code)}/history`);
+  const labels = data.series.map(r => r.date);
+
+  state.stockChart = buildChart(
+    document.getElementById('stockChart'), state.stockChart,
+    [
+      { label: '持股股數', data: data.series.map(r => r.shares), borderColor: '#26a69a', tension: 0.2, pointRadius: 0, spanGaps: false, yAxisID: 'y' },
+      { label: '持股權重(%)', data: data.series.map(r => r.weight_pct), borderColor: '#ef5350', tension: 0.2, pointRadius: 0, spanGaps: false, yAxisID: 'y1' },
+    ],
+    labels,
+  );
+  state.stockChart.options.scales.y1 = { position: 'right', ticks: { color: TXO_INK }, grid: { display: false } };
+  state.stockChart.update();
+}
+
+async function loadStockList() {
+  const stocks = await api(`/api/funds/${state.ticker}/stocks`);
+  const select = document.getElementById('stockSelect');
+
+  if (!stocks.length) {
+    select.innerHTML = '';
+    if (state.stockChart) { state.stockChart.destroy(); state.stockChart = null; }
+    return;
+  }
+
+  select.innerHTML = stocks.map(s => `<option value="${s.code}">${s.code} ${s.name || ''}</option>`).join('');
+  select.onchange = () => renderStockChart(select.value);
+  await renderStockChart(stocks[0].code);
+}
+
+async function selectTicker(ticker) {
+  state.ticker = ticker;
+  document.querySelectorAll('.tab').forEach((el, i) => el.classList.toggle('active', state.funds[i]?.ticker === ticker));
+  renderCards();
+  await renderCharts();
+  await loadStockList();
+  await loadDatesAndHoldings();
+}
+
+document.getElementById('fetchNowBtn').onclick = async () => {
+  const btn = document.getElementById('fetchNowBtn');
+  const status = document.getElementById('status');
+  btn.disabled = true;
+  status.textContent = '抓取中，請稍候 (約需 10-30 秒)...';
+  try {
+    const result = await api('/api/fetch-now', { method: 'POST' });
+    const ok = Object.values(result).filter(v => v === 'ok').length;
+    status.textContent = `完成：${ok}/${Object.keys(result).length} 檔成功`;
+    await loadFunds();
+    await selectTicker(state.ticker);
+  } catch (e) {
+    status.textContent = '抓取失敗：' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+async function initStockCompareView() {
+  if (state.allStocks.length) return;
+  state.allStocks = await api('/api/stocks');
+  document.getElementById('stockListOptions').innerHTML =
+    state.allStocks.map(s => `<option value="${s.code} ${s.name || ''}"></option>`).join('');
+}
+
+const ACTION_STYLE = {
+  新增: { color: '#42a5f5', pointStyle: 'rectRot', rotation: 0, radius: 8, order: 1 },
+  加碼: { color: '#ef5350', pointStyle: 'triangle', rotation: 0, radius: 6, order: 2 },
+  減碼: { color: '#ffa726', pointStyle: 'triangle', rotation: 180, radius: 6, order: 3 },
+  出清: { color: '#ab47bc', pointStyle: 'rectRot', rotation: 0, radius: 8, order: 4 },
+};
+const ACTION_ORDER = ['新增', '加碼', '減碼', '出清'];
+
+function renderEventsTable(events) {
+  const wrap = document.getElementById('compareEventsWrap');
+  if (!events.length) {
+    wrap.innerHTML = '<div class="empty">目前追蹤的 ETF 都沒有持有過這檔股票</div>';
+    return;
+  }
+  // 顏色與走勢圖標記一致 (見 ACTION_STYLE)
+  const badgeStyle = a => {
+    const c = ACTION_STYLE[a]?.color || '#999';
+    return `background:${c}33; color:${c};`;
+  };
+  const rows = [...events].reverse().map(e => `
+    <tr>
+      <td>${e.date}</td>
+      <td>${e.ticker}</td>
+      <td>${e.fund_name}</td>
+      <td><span class="badge" style="${badgeStyle(e.action)}">${e.action}</span></td>
+      <td class="num">${fmtNum(e.prev_shares)} → ${fmtNum(e.shares)}
+        <span class="${e.share_diff > 0 ? 'up' : 'down'}">(${e.share_diff > 0 ? '+' : ''}${fmtNum(e.share_diff)})</span></td>
+    </tr>`).join('');
+  wrap.innerHTML = `
+    <h3 style="font-size:13px; color:var(--muted); margin:16px 0 6px;">各 ETF 操作明細 (${events.length} 筆，最新在上)</h3>
+    <table>
+      <thead><tr><th>日期</th><th>代號</th><th>基金名稱</th><th>動作</th><th class="num">股數變化</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function renderCompareChart(series, events) {
+  const canvas = document.getElementById('compareChart');
+  if (state.compareChart) { state.compareChart.destroy(); state.compareChart = null; }
+  if (!canvas) return;
+
+  const priceByDate = Object.fromEntries(series.map(r => [r.date, r.close]));
+  const labels = series.map(r => r.date);
+  const pointsByAction = { 新增: [], 加碼: [], 減碼: [], 出清: [] };
+
+  events.forEach(e => {
+    const price = priceByDate[e.date];
+    if (price !== undefined) pointsByAction[e.action].push({ x: e.date, y: price, meta: e });
+  });
+
+  const actionDatasets = ACTION_ORDER.map(action => {
+    const style = ACTION_STYLE[action];
+    return {
+      type: 'scatter', label: action, data: pointsByAction[action], showLine: false,
+      pointStyle: style.pointStyle, pointRotation: style.rotation, pointRadius: style.radius, pointHoverRadius: style.radius + 2,
+      pointBackgroundColor: style.color, pointBorderColor: '#0f1420', pointBorderWidth: 1, order: style.order,
+    };
+  });
+
+  state.compareChart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: '收盤價', data: series.map(r => r.close), borderColor: '#000000',
+          backgroundColor: 'rgba(0,0,0,0.06)', tension: 0.15, fill: true, pointRadius: 0, order: 5,
+        },
+        ...actionDatasets,
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'nearest', intersect: true },
+      plugins: {
+        legend: { labels: { color: TXO_INK } },
+        tooltip: {
+          callbacks: {
+            label(ctx) {
+              const raw = ctx.raw;
+              if (raw && raw.meta) {
+                const m = raw.meta;
+                return `${m.action}：${m.ticker} ${m.fund_name}　${fmtNum(m.prev_shares)}→${fmtNum(m.shares)} 股 @ ${fmtNum(raw.y, 2)}`;
+              }
+              return `${ctx.dataset.label}: ${fmtNum(ctx.parsed.y, 2)}`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: { ticks: { color: TXO_INK }, grid: { color: TXO_GRID } },
+        y: { ticks: { color: TXO_INK }, grid: { color: TXO_GRID } },
+      },
+    },
+  });
+}
+
+async function loadStockCompare(code) {
+  const body = document.getElementById('stockCompareBody');
+  body.innerHTML = '<div class="empty">載入中...</div>';
+
+  const [priceData, events] = await Promise.all([
+    api(`/api/stocks/${encodeURIComponent(code)}/price`),
+    api(`/api/stocks/${encodeURIComponent(code)}/events`),
+  ]);
+  const meta = state.allStocks.find(s => s.code === code);
+
+  body.innerHTML = `
+    <h3 style="margin:4px 0 12px; font-size:16px;">${code} ${meta?.name || ''}</h3>
+    <div class="chart-wrap" id="compareChartWrap" style="height:320px;"><canvas id="compareChart"></canvas></div>
+    <div id="compareEventsWrap" style="margin-top:16px;"></div>
+  `;
+
+  if (priceData.unavailable) {
+    document.getElementById('compareChartWrap').innerHTML =
+      '<div class="empty">查無此代碼的台股上市/上櫃收盤價資料 (可能為海外持股，非台股上市櫃標的)</div>';
+  } else {
+    renderCompareChart(priceData.series, events);
+  }
+  renderEventsTable(events);
+}
+
+async function switchView(view) {
+  document.querySelectorAll('.navlink').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+  document.getElementById('etfView').style.display = view === 'etf' ? '' : 'none';
+  document.getElementById('stockCompareView').style.display = view === 'stock' ? '' : 'none';
+  document.getElementById('txoView').style.display = view === 'txo' ? '' : 'none';
+  document.getElementById('futuresView').style.display = view === 'futures' ? '' : 'none';
+  document.getElementById('bondsView').style.display = view === 'bonds' ? '' : 'none';
+  document.getElementById('macrosView').style.display = view === 'macros' ? '' : 'none';
+  document.getElementById('auctionsView').style.display = view === 'auctions' ? '' : 'none';
+  document.getElementById('tabs').style.display = view === 'etf' ? '' : 'none';
+
+  if (view === 'stock') {
+    await initStockCompareView();
+    if (!state.compareChart && state.allStocks.length) {
+      const first = state.allStocks[0];
+      document.getElementById('stockCompareInput').value = `${first.code} ${first.name || ''}`;
+      await loadStockCompare(first.code);
+    }
+  } else if (view === 'txo') {
+    await initTxoView();
+  } else if (view === 'futures') {
+    await initFuturesView();
+  } else if (view === 'bonds') {
+    await initBondsView();
+  } else if (view === 'macros') {
+    await initMacrosView();
+  } else if (view === 'auctions') {
+    await initAuctionsView();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 台指選擇權 (TXO)
+// ---------------------------------------------------------------------------
+
+function currentTxoMonth() {
+  const v = document.getElementById('txoMonthSelect').value;
+  return v || null; // 空字串 = 全部合約
+}
+
+function buildLightLineChart(ctx, existing, datasets, labels) {
+  if (existing) existing.destroy();
+  return new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { labels: { color: TXO_INK } } },
+      scales: {
+        x: { ticks: { color: TXO_INK }, grid: { color: TXO_GRID } },
+        y: { ticks: { color: TXO_INK }, grid: { color: TXO_GRID } },
+      },
+    },
+  });
+}
+
+async function loadTxoTrend() {
+  const start = document.getElementById('txoStartSelect').value;
+  const end = document.getElementById('txoEndSelect').value;
+  if (!start || !end) return;
+  const month = currentTxoMonth();
+  let url = `/api/txo/summary?start=${start}&end=${end}`;
+  if (month) url += `&contract_month=${encodeURIComponent(month)}`;
+  const rows = await api(url);
+  const labels = rows.map(r => r.date);
+  const ratio = (num, den) => (den ? num / den : null);
+
+  state.txoOiChart = buildLightLineChart(
+    document.getElementById('txoOiChart'), state.txoOiChart,
+    [
+      { label: 'Call 未平倉量', data: rows.map(r => r.call_oi), borderColor: '#ef5350', tension: 0.2, pointRadius: 0, yAxisID: 'y' },
+      { label: 'Put 未平倉量', data: rows.map(r => r.put_oi), borderColor: '#26a69a', tension: 0.2, pointRadius: 0, yAxisID: 'y' },
+      { label: 'Put/Call 比', data: rows.map(r => ratio(r.put_oi, r.call_oi)), borderColor: '#000000', borderDash: [5, 3], tension: 0.2, pointRadius: 0, yAxisID: 'y1' },
+    ],
+    labels,
+  );
+  state.txoOiChart.options.scales.y1 = { position: 'right', ticks: { color: TXO_INK }, grid: { display: false }, title: { display: true, text: 'Put/Call 比', color: TXO_INK } };
+  state.txoOiChart.update();
+
+  state.txoVolumeChart = buildLightLineChart(
+    document.getElementById('txoVolumeChart'), state.txoVolumeChart,
+    [
+      { label: 'Call 成交量', data: rows.map(r => r.call_volume), borderColor: '#ef5350', tension: 0.2, pointRadius: 0, yAxisID: 'y' },
+      { label: 'Put 成交量', data: rows.map(r => r.put_volume), borderColor: '#26a69a', tension: 0.2, pointRadius: 0, yAxisID: 'y' },
+      { label: 'Put/Call 比', data: rows.map(r => ratio(r.put_volume, r.call_volume)), borderColor: '#000000', borderDash: [5, 3], tension: 0.2, pointRadius: 0, yAxisID: 'y1' },
+    ],
+    labels,
+  );
+  state.txoVolumeChart.options.scales.y1 = { position: 'right', ticks: { color: TXO_INK }, grid: { display: false }, title: { display: true, text: 'Put/Call 比', color: TXO_INK } };
+  state.txoVolumeChart.update();
+}
+
+async function loadTxoRange() {
+  const start = document.getElementById('txoStartSelect').value;
+  const end = document.getElementById('txoEndSelect').value;
+  if (!start || !end) return;
+  const month = currentTxoMonth();
+  let url = `/api/txo/oi-range?start=${start}&end=${end}`;
+  if (month) url += `&contract_month=${encodeURIComponent(month)}`;
+  const rows = await api(url);
+  const labels = rows.map(r => r.date);
+  const rangeData = rows.map(r => {
+    const put = r.put_max_strike, call = r.call_max_strike;
+    if (put === null || call === null) return [null, null];
+    return [Math.min(put, call), Math.max(put, call)];
+  });
+
+  document.getElementById('txoRangeWrap').style.height = Math.max(220, labels.length * 26 + 60) + 'px';
+
+  if (state.txoRangeChart) state.txoRangeChart.destroy();
+  state.txoRangeChart = new Chart(document.getElementById('txoRangeChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Put 支撐 ～ Call 壓力 履約價區間', data: rangeData,
+        backgroundColor: '#2e7d32', borderColor: '#1b5e20', borderWidth: 1,
+        barThickness: 14,
+      }],
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: TXO_INK } },
+        tooltip: {
+          callbacks: {
+            label(ctx) {
+              const r = rows[ctx.dataIndex];
+              return [
+                `Call 最大OI履約價(壓力)：${fmtNum(r.call_max_strike)}　OI ${fmtNum(r.call_max_oi)}`,
+                `Put 最大OI履約價(支撐)：${fmtNum(r.put_max_strike)}　OI ${fmtNum(r.put_max_oi)}`,
+              ];
+            },
+          },
+        },
+      },
+      scales: {
+        // beginAtZero:false 讓 X 軸自動貼齊實際履約價範圍，而不是從 0 開始拉一條長長的空白
+        x: { beginAtZero: false, ticks: { color: TXO_INK }, grid: { color: TXO_GRID }, title: { display: true, text: '履約價', color: TXO_INK } },
+        y: { ticks: { color: TXO_INK }, grid: { color: TXO_GRID } },
+      },
+    },
+  });
+}
+
+function argmaxStrikeField(rows, field) {
+  let best = null;
+  for (const r of rows) {
+    if (r[field] != null && (best === null || r[field] > best.value)) best = { strike: r.strike, value: r[field] };
+  }
+  return best ? best.strike : null;
+}
+
+async function loadTxoCompare() {
+  const a = document.getElementById('txoCompareA').value;
+  const b = document.getElementById('txoCompareB').value;
+  const metric = document.getElementById('txoCompareMetric').value;
+  if (!a || !b) return;
+  const month = currentTxoMonth();
+  let url = `/api/txo/compare?date_a=${a}&date_b=${b}`;
+  if (month) url += `&contract_month=${encodeURIComponent(month)}`;
+  const data = await api(url);
+  let rows = data.rows;
+
+  // 只保留 Call/Put 在 A、B 兩天各自最大未平倉量履約價所涵蓋的主要區間，避免把遠價外、幾乎沒有未平倉量的履約價也畫出來
+  const keyStrikes = ['call_oi_a', 'call_oi_b', 'put_oi_a', 'put_oi_b']
+    .map(f => argmaxStrikeField(rows, f))
+    .filter(v => v !== null);
+  if (keyStrikes.length) {
+    const lo = Math.min(...keyStrikes), hi = Math.max(...keyStrikes);
+    rows = rows.filter(r => r.strike >= lo && r.strike <= hi);
+  }
+
+  const labels = rows.map(r => fmtNum(r.strike));
+  // Put 值取負，讓它畫在履約價左邊；Call 維持正值畫在右邊，形成以履約價為中心的左右對照
+  const callA = rows.map(r => r[`call_${metric}_a`] ?? 0);
+  const callB = rows.map(r => r[`call_${metric}_b`] ?? 0);
+  const putA = rows.map(r => -(r[`put_${metric}_a`] ?? 0));
+  const putB = rows.map(r => -(r[`put_${metric}_b`] ?? 0));
+
+  document.getElementById('txoCompareInner').style.height = Math.max(220, rows.length * 30 + 80) + 'px';
+
+  const CALL_COLOR = '#ef5350', PUT_COLOR = '#26a69a';
+
+  if (state.txoCompareChart) state.txoCompareChart.destroy();
+  state.txoCompareChart = new Chart(document.getElementById('txoCompareChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        // 日期 A：實心柱狀
+        { label: `Call ${a}`, data: callA, backgroundColor: CALL_COLOR, borderColor: CALL_COLOR, borderWidth: 1 },
+        { label: `Put ${a}`, data: putA, backgroundColor: PUT_COLOR, borderColor: PUT_COLOR, borderWidth: 1 },
+        // 日期 B：空心虛線柱狀
+        { label: `Call ${b}`, data: callB, backgroundColor: 'rgba(239,83,80,0.08)', borderColor: CALL_COLOR, borderWidth: 2, borderDash: [6, 4] },
+        { label: `Put ${b}`, data: putB, backgroundColor: 'rgba(38,166,154,0.08)', borderColor: PUT_COLOR, borderWidth: 2, borderDash: [6, 4] },
+      ],
+    },
+    options: {
+      indexAxis: 'y', // 轉置：履約價放 Y 軸(中心)，數值放 X 軸，Put 往左、Call 往右
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'nearest', intersect: true },
+      plugins: {
+        legend: { labels: { color: TXO_INK } },
+        tooltip: {
+          callbacks: {
+            title: (items) => `履約價 ${items[0].label}`,
+            // 履約價視為單一資料點：游標經過 Call 或 Put 任一根柱子，都把該側兩個日期的數據一起列出
+            label: (ctx) => {
+              const r = rows[ctx.dataIndex];
+              const isCall = ctx.dataset.label.startsWith('Call');
+              const side = isCall ? 'call' : 'put';
+              const sideLabel = isCall ? 'Call' : 'Put';
+              return [
+                `${sideLabel} ${a}: ${fmtNum(Math.abs(r[`${side}_${metric}_a`] ?? 0))}`,
+                `${sideLabel} ${b}: ${fmtNum(Math.abs(r[`${side}_${metric}_b`] ?? 0))}`,
+              ];
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: { color: TXO_INK, callback: (v) => fmtNum(Math.abs(v)) },
+          grid: { color: TXO_GRID },
+          title: { display: true, text: '← Put　　Call →', color: TXO_INK },
+        },
+        y: { ticks: { color: TXO_INK }, grid: { color: TXO_GRID }, title: { display: true, text: '履約價', color: TXO_INK } },
+      },
+    },
+  });
+}
+
+async function initTxoView() {
+  if (!state.txoInitialized) {
+    const [datesDesc, months] = await Promise.all([api('/api/txo/dates'), api('/api/txo/contract-months')]);
+    state.txoDates = [...datesDesc].reverse();
+    state.txoMonths = months;
+
+    if (!state.txoDates.length) {
+      document.getElementById('txoView').innerHTML = '<div class="panel"><div class="empty">尚無 TXO 資料，請先執行 scripts/backfill_txo.py 或按「立即抓取最新資料」</div></div>';
+      return;
+    }
+
+    const monthSel = document.getElementById('txoMonthSelect');
+    monthSel.innerHTML = '<option value="">全部合約</option>' + months.map(m => `<option value="${m}">${m}</option>`).join('');
+    monthSel.value = ''; // 預設全部合約
+
+    const dateOptsHtml = state.txoDates.map(d => `<option value="${d}">${d}</option>`).join('');
+    ['txoStartSelect', 'txoEndSelect', 'txoCompareA', 'txoCompareB'].forEach(id => {
+      document.getElementById(id).innerHTML = dateOptsHtml;
+    });
+    document.getElementById('txoStartSelect').value = state.txoDates[0];
+    document.getElementById('txoEndSelect').value = state.txoDates[state.txoDates.length - 1];
+    document.getElementById('txoCompareA').value = state.txoDates[0];
+    document.getElementById('txoCompareB').value = state.txoDates[state.txoDates.length - 1];
+
+    const refreshTrendAndRange = () => { loadTxoTrend(); loadTxoRange(); };
+    const refreshAll = () => { loadTxoTrend(); loadTxoRange(); loadTxoCompare(); };
+
+    document.getElementById('txoMonthSelect').onchange = refreshAll;
+    document.getElementById('txoStartSelect').onchange = refreshTrendAndRange;
+    document.getElementById('txoEndSelect').onchange = refreshTrendAndRange;
+    ['txoCompareA', 'txoCompareB', 'txoCompareMetric'].forEach(id => {
+      document.getElementById(id).onchange = loadTxoCompare;
+    });
+
+    state.txoInitialized = true;
+    await loadTxoTrend();
+    await loadTxoRange();
+    await loadTxoCompare();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 大盤期貨 (TX/MTX/TMF + 三大法人 + 反推散戶)
+// ---------------------------------------------------------------------------
+
+function renderFuturesTable(data) {
+  const wrap = document.getElementById('futuresTableWrap');
+  const info = document.getElementById('futuresTableDateInfo');
+  if (!data.date || !data.rows.length) {
+    info.textContent = '';
+    wrap.innerHTML = '<div class="empty">尚無資料</div>';
+    return;
+  }
+  info.textContent = data.prev_date ? `${data.prev_date} → ${data.date}` : data.date;
+
+  const delta = (v) => {
+    if (v === null || v === undefined) return '';
+    const cls = v > 0 ? 'up' : v < 0 ? 'down' : '';
+    const sign = v > 0 ? '+' : '';
+    return `<br><span class="${cls}" style="font-size:11px;">較前日 ${sign}${fmtNum(v)}</span>`;
+  };
+
+  const rows = data.rows.map(r => `
+      <tr>
+        <td>${r.label}</td>
+        <td class="num">${fmtNum(r.tx_net_oi)}${delta(r.tx_change_txeq)}</td>
+        <td class="num">${fmtNum(r.mtx_net_oi)}<br><span style="color:var(--muted); font-size:11px;">約當 ${fmtNum(r.mtx_net_oi_txeq)}</span>${delta(r.mtx_change_txeq)}</td>
+        <td class="num">${fmtNum(r.tmf_net_oi)}<br><span style="color:var(--muted); font-size:11px;">約當 ${fmtNum(r.tmf_net_oi_txeq)}</span>${delta(r.tmf_change_txeq)}</td>
+        <td class="num"><strong>${fmtNum(r.total_txeq)}</strong>${delta(r.change_txeq)}</td>
+      </tr>`).join('');
+
+  wrap.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>身份別</th><th class="num">TX 淨OI</th><th class="num">MTX 淨OI</th><th class="num">TMF 淨OI</th>
+        <th class="num">合計(TX約當)</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+const FUTURES_INVESTOR_COLORS = { FOREIGN: '#ef5350', TRUST: '#26a69a', RETAIL: '#ffa726', DEALER: '#42a5f5' };
+const FUTURES_INVESTOR_ORDER = ['FOREIGN', 'TRUST', 'RETAIL', 'DEALER'];
+const FUTURES_INVESTOR_SUFFIX_LABELS = { FOREIGN: '外資多空比', TRUST: '投信多空比', RETAIL: '散戶多空比', DEALER: '自營商多空比' };
+
+function renderFuturesRatioChart(canvasId, stateKey, data) {
+  const labels = data.dates;
+  const datasets = FUTURES_INVESTOR_ORDER.map(key => ({
+    label: FUTURES_INVESTOR_SUFFIX_LABELS[key],
+    data: data.series[key],
+    borderColor: FUTURES_INVESTOR_COLORS[key],
+    backgroundColor: FUTURES_INVESTOR_COLORS[key],
+    tension: 0.3, pointRadius: 2, borderWidth: 2,
+  }));
+
+  if (state[stateKey]) state[stateKey].destroy();
+  state[stateKey] = new Chart(document.getElementById(canvasId), {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: TXO_INK } },
+        tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}：${ctx.parsed.y === null ? '—' : ctx.parsed.y + '%'}` } },
+      },
+      scales: {
+        x: { ticks: { color: TXO_INK }, grid: { color: TXO_GRID } },
+        y: { ticks: { color: TXO_INK, callback: (v) => Number(v.toFixed(2)) + '%' }, grid: { color: TXO_GRID } },
+      },
+    },
+  });
+  // 這個面板用 flex 排版，圖表寬度取決於排版結果；關掉動畫讓 Chart.js 用同步方式繪製，
+  // 避免依賴 requestAnimationFrame 排程的初次繪製在這個情境下被跳過、畫布維持空白。
+  state[stateKey].draw();
+}
+
+async function loadFuturesRatioTrend() {
+  const dates = state.futuresDates;
+  const start = dates[dates.length - 1];
+  const end = dates[0];
+  const [mtxData, tmfData] = await Promise.all([
+    api(`/api/futures/net-ratio?product=MTX&start=${start}&end=${end}`),
+    api(`/api/futures/net-ratio?product=TMF&start=${start}&end=${end}`),
+  ]);
+  renderFuturesRatioChart('futuresMtxRatioChart', 'futuresMtxRatioChart', mtxData);
+  renderFuturesRatioChart('futuresTmfRatioChart', 'futuresTmfRatioChart', tmfData);
+  document.getElementById('futuresRatioCount').textContent = `${mtxData.dates.length} 交易日記錄`;
+}
+
+async function loadFuturesForDate(date) {
+  const table = await api(`/api/futures/table?date=${date}`);
+  renderFuturesTable(table);
+}
+
+async function initFuturesView() {
+  if (!state.futuresInitialized) {
+    const dates = await api('/api/futures/dates');
+    state.futuresDates = dates;
+
+    if (!dates.length) {
+      document.getElementById('futuresView').innerHTML = '<div class="panel"><div class="empty">尚無大盤期貨資料，請先執行 scripts/backfill_futures.py 或按「立即抓取最新資料」</div></div>';
+      return;
+    }
+
+    const sel = document.getElementById('futuresDateSelect');
+    sel.innerHTML = dates.map(d => `<option value="${d}">${d}</option>`).join('');
+    sel.value = dates[0];
+    sel.onchange = () => loadFuturesForDate(sel.value);
+
+    state.futuresInitialized = true;
+    await loadFuturesForDate(dates[0]);
+    await loadFuturesRatioTrend();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 債市 (美債殖利率曲線 / 利差 / 公司債利差 / 5Y5Y遠期通膨預期)
+// ---------------------------------------------------------------------------
+
+const BONDS_BPS_CATEGORIES = ['SPREAD', 'CREDIT'];
+
+function bondsStatDisplay(row) {
+  if (row.value === null || row.value === undefined) return '—';
+  if (BONDS_BPS_CATEGORIES.includes(row.category)) return Math.round(row.value * 100) + ' bp';
+  return row.value.toFixed(2) + '%';
+}
+
+// 百分位色階：0-25% 紅、25-50% 黃、50-75% 綠、75-100% 藍（由低至高），跟卡片下方的色階註記對應。
+function bondsPercentileColor(p) {
+  if (p < 25) return '#e53935';
+  if (p < 50) return '#fbc02d';
+  if (p < 75) return '#43a047';
+  return '#1565c0';
+}
+
+function bondsPercentileLine(d) {
+  if (d.percentile === null || d.percentile === undefined) return '';
+  const color = bondsPercentileColor(d.percentile);
+  return `<div style="color:${color}; font-size:12px; font-weight:700; margin-top:2px;">近2年百分位 ${d.percentile.toFixed(1)}%</div>`;
+}
+
+function bondsDeltaLine(d) {
+  if (d.delta_1d === null || d.delta_1d === undefined) return '';
+  const cls = d.delta_1d > 0 ? 'up' : d.delta_1d < 0 ? 'down' : '';
+  const sign = d.delta_1d > 0 ? '+' : '';
+  return `<div class="delta ${cls}">與前一日 ${sign}${d.delta_1d.toFixed(2)} 個百分點</div>`;
+}
+
+async function loadBondsStats() {
+  const data = await api('/api/bonds/latest');
+  document.getElementById('bondsStatCards').innerHTML = data.map(d => `
+    <div class="card">
+      <div class="label">${d.label}</div>
+      <div class="value">${bondsStatDisplay(d)}</div>
+      <div class="delta" style="color:var(--muted);">${d.date || '—'}</div>
+      ${bondsDeltaLine(d)}
+      ${bondsPercentileLine(d)}
+    </div>`).join('');
+}
+
+// 跟白底折線圖共用的建構器，但完整組好所有 options 再一次建立 Chart 物件，
+// 不在建立後才去改 options 再呼叫 update()——先前「大盤期貨」歷史比率走勢圖就是
+// 建好之後才 mutate options + update()，在這個環境下動畫排程有時候會被跳過、
+// 畫布保持空白甚至量到寬度 0，所以這裡改成一開始就把 % 座標軸格式、tooltip
+// 一起放進建構參數，並關掉動畫、建立後立刻同步 draw() 一次。
+function buildPercentLineChart(canvasId, existing, datasets, labels) {
+  if (existing) existing.destroy();
+  const chart = new Chart(document.getElementById(canvasId), {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: TXO_INK } },
+        tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y === null ? '—' : ctx.parsed.y.toFixed(2) + '%'}` } },
+      },
+      scales: {
+        x: { ticks: { color: TXO_INK }, grid: { color: TXO_GRID } },
+        y: { ticks: { color: TXO_INK, callback: (v) => Number(v.toFixed(2)) + '%' }, grid: { color: TXO_GRID } },
+      },
+    },
+  });
+  chart.draw();
+  return chart;
+}
+
+async function loadBondsYieldCurve() {
+  const data = await api('/api/bonds/yield-curve');
+  document.getElementById('bondsYieldCurveDate').textContent = data.date ? `資料日期：${data.date}` : '';
+  if (!data.rows.length) {
+    document.getElementById('bondsYieldCurveTableWrap').innerHTML = '<div class="empty">尚無資料</div>';
+    return;
+  }
+
+  const labels = data.rows.map(r => r.label);
+  const refDates = data.ref_dates || {};
+  const periods = [
+    { key: 'value', label: `最新 (${data.date || '—'})`, color: '#1a2980', fill: true, width: 2.5, dash: [] },
+    { key: 'value_1w', label: `近一週 (${refDates['1w'] || '—'})`, color: '#26d0ce', fill: false, width: 1.5, dash: [] },
+    { key: 'value_1m', label: `近一月 (${refDates['1m'] || '—'})`, color: '#8e24aa', fill: false, width: 1.5, dash: [4, 3] },
+    { key: 'value_3m', label: `近三個月 (${refDates['3m'] || '—'})`, color: '#ef6c00', fill: false, width: 1.5, dash: [2, 2] },
+    { key: 'value_ytd', label: `YTD (${refDates['ytd'] || '—'})`, color: '#9e9e9e', fill: false, width: 1.5, dash: [6, 3] },
+  ];
+  const datasets = periods.map(p => ({
+    label: p.label,
+    data: data.rows.map(r => r[p.key]),
+    borderColor: p.color,
+    backgroundColor: p.fill ? 'rgba(26,41,128,0.08)' : 'transparent',
+    tension: 0.25,
+    pointRadius: p.key === 'value' ? 3 : 0,
+    borderWidth: p.width,
+    borderDash: p.dash,
+    fill: p.fill,
+  }));
+  state.bondsYieldCurveChart = buildPercentLineChart(
+    'bondsYieldCurveChart', state.bondsYieldCurveChart,
+    datasets,
+    labels,
+  );
+
+  const chip = (v) => {
+    if (v === null || v === undefined) return '<span style="color:var(--muted);">—</span>';
+    const cls = v > 0 ? 'up' : v < 0 ? 'down' : '';
+    const sign = v > 0 ? '+' : '';
+    return `<span class="${cls}">${sign}${v.toFixed(1)} bp</span>`;
+  };
+  const rows = data.rows.map(r => `
+    <tr>
+      <td>${r.label}</td>
+      <td class="num">${r.value === null ? '—' : r.value.toFixed(2) + '%'}</td>
+      <td class="num">${chip(r.chg_1w_bps)}</td>
+      <td class="num">${chip(r.chg_1m_bps)}</td>
+      <td class="num">${chip(r.chg_3m_bps)}</td>
+      <td class="num">${chip(r.chg_ytd_bps)}</td>
+    </tr>`).join('');
+  document.getElementById('bondsYieldCurveTableWrap').innerHTML = `
+    <table>
+      <thead><tr>
+        <th>年期</th><th class="num">殖利率</th><th class="num">1週變化</th>
+        <th class="num">1個月變化</th><th class="num">3個月變化</th><th class="num">YTD變化</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function alignBondSeries(seriesObj, ids) {
+  const dateSet = new Set();
+  ids.forEach(id => (seriesObj[id] || []).forEach(r => dateSet.add(r.date)));
+  const dates = Array.from(dateSet).sort();
+  const maps = ids.map(id => Object.fromEntries((seriesObj[id] || []).map(r => [r.date, r.value])));
+  return { dates, values: maps.map(m => dates.map(d => (d in m ? m[d] : null))) };
+}
+
+async function loadBondsAcmTermPremium() {
+  const data = await api('/api/bonds/series?ids=DGS10,ACMY10,ACMTP10');
+  const { dates, values } = alignBondSeries(data, ['DGS10', 'ACMY10', 'ACMTP10']);
+  state.bondsAcmChart = buildPercentLineChart(
+    'bondsAcmChart', state.bondsAcmChart,
+    [
+      { label: '10年期美債實際殖利率', data: values[0], borderColor: '#1a2980', borderWidth: 2, pointRadius: 0, tension: 0.15, fill: false },
+      { label: 'ACM Fitted Yield', data: values[1], borderColor: '#00897b', borderWidth: 1.5, borderDash: [5, 3], pointRadius: 0, tension: 0.15, fill: false },
+      { label: 'Term Premium', data: values[2], borderColor: '#e53935', borderWidth: 2, pointRadius: 0, tension: 0.15, fill: false },
+    ],
+    dates,
+  );
+}
+
+async function loadBondsSpreadTrend() {
+  const data = await api('/api/bonds/series?ids=T10Y2Y,T10Y3M');
+  const { dates, values } = alignBondSeries(data, ['T10Y2Y', 'T10Y3M']);
+  state.bondsSpreadChart = buildPercentLineChart(
+    'bondsSpreadChart', state.bondsSpreadChart,
+    [
+      { label: '2Y10Y 利差', data: values[0], borderColor: '#1a2980', tension: 0.2, pointRadius: 0 },
+      { label: '3M10Y 利差', data: values[1], borderColor: '#26d0ce', tension: 0.2, pointRadius: 0 },
+    ],
+    dates,
+  );
+}
+
+// 跟 buildPercentLineChart 一樣的「一次組好所有 options」安全模式，額外多開一條
+// 右側 Y2 座標軸，給利差之利差(HY-BBB)用陰影面積呈現，跟左軸的兩條原始利差線區隔開。
+function buildDualAxisChart(canvasId, existing, datasets, labels) {
+  if (existing) existing.destroy();
+  const chart = new Chart(document.getElementById(canvasId), {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: TXO_INK } },
+        tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y === null ? '—' : ctx.parsed.y.toFixed(2) + '%'}` } },
+      },
+      scales: {
+        x: { ticks: { color: TXO_INK }, grid: { color: TXO_GRID } },
+        y: { position: 'left', ticks: { color: TXO_INK, callback: (v) => Number(v.toFixed(2)) + '%' }, grid: { color: TXO_GRID } },
+        y1: { position: 'right', ticks: { color: TXO_INK, callback: (v) => Number(v.toFixed(2)) + '%' }, grid: { display: false } },
+      },
+    },
+  });
+  chart.draw();
+  return chart;
+}
+
+async function loadBondsCreditTrend() {
+  const data = await api('/api/bonds/series?ids=BAMLC0A4CBBB,BAMLH0A0HYM2');
+  const { dates, values } = alignBondSeries(data, ['BAMLC0A4CBBB', 'BAMLH0A0HYM2']);
+  const diff = dates.map((_, i) => (values[0][i] === null || values[1][i] === null) ? null : values[1][i] - values[0][i]);
+  state.bondsCreditChart = buildDualAxisChart(
+    'bondsCreditChart', state.bondsCreditChart,
+    [
+      { label: 'BBB 投等公司債利差', data: values[0], borderColor: '#42a5f5', tension: 0.2, pointRadius: 0, yAxisID: 'y' },
+      { label: '高收益公司債利差', data: values[1], borderColor: '#ef5350', tension: 0.2, pointRadius: 0, yAxisID: 'y' },
+      { label: '高收益債－BBB利差 (右軸)', data: diff, borderColor: '#7b1fa2', backgroundColor: 'rgba(123,31,162,0.18)', tension: 0.2, pointRadius: 0, fill: true, yAxisID: 'y1' },
+    ],
+    dates,
+  );
+}
+
+async function loadBondsInflationTrend() {
+  const data = await api('/api/bonds/series?ids=T5YIFR,T5YIE');
+  const { dates, values } = alignBondSeries(data, ['T5YIFR', 'T5YIE']);
+  state.bondsInflationChart = buildPercentLineChart(
+    'bondsInflationChart', state.bondsInflationChart,
+    [
+      { label: '5Y5Y 遠期通膨預期', data: values[0], borderColor: '#f9a825', tension: 0.2, pointRadius: 0 },
+      { label: '5Y 損益兩平通膨率', data: values[1], borderColor: '#00897b', tension: 0.2, pointRadius: 0 },
+    ],
+    dates,
+  );
+}
+
+async function loadBondsPolicyExpectation() {
+  const [data, mptData] = await Promise.all([
+    api('/api/bonds/policy-expectation'),
+    api('/api/bonds/mpt-probability'),
+  ]);
+  if (!data.length) return;
+
+  // 兩張圖共用同一條時間軸：以殖利率資料的日期範圍為準，聯集上 Atlanta Fed MPT
+  // 落在同一範圍內的觀測日，缺資料的日期該序列就是 null，Chart.js 會自然斷線、
+  // 不會硬畫出「有的資料時間點位」以外的內插值。
+  const policyDates = data.map(r => r.date);
+  const minDate = policyDates[0], maxDate = policyDates[policyDates.length - 1];
+  const mptInRange = mptData.filter(r => r.date >= minDate && r.date <= maxDate);
+  const labelSet = new Set(policyDates);
+  mptInRange.forEach(r => labelSet.add(r.date));
+  const labels = Array.from(labelSet).sort();
+
+  const policyMap = Object.fromEntries(data.map(r => [r.date, r]));
+  const mptMap = Object.fromEntries(mptInRange.map(r => [r.date, r]));
+  const pick = (map, date, field) => (map[date] ? map[date][field] : null);
+
+  // 跟泰勒法則圖同一套灰色帶狀區間手法：上限/下限夾出目前政策利率區間，
+  // 再疊 3個月／1年期殖利率兩條線，用跟目前區間的落差近似市場升降息預期方向。
+  state.bondsPolicyChart = buildPercentLineChart(
+    'bondsPolicyChart', state.bondsPolicyChart,
+    [
+      { label: '聯邦資金目標上限', data: labels.map(d => pick(policyMap, d, 'fed_funds_upper')), borderColor: 'rgba(120,120,120,0.5)', backgroundColor: 'transparent', borderWidth: 1, pointRadius: 0, tension: 0, fill: false },
+      { label: '聯邦資金目標下限', data: labels.map(d => pick(policyMap, d, 'fed_funds_lower')), borderColor: 'rgba(120,120,120,0.5)', backgroundColor: 'rgba(120,120,120,0.15)', borderWidth: 1, pointRadius: 0, tension: 0, fill: '-1' },
+      { label: '聯邦資金目標中位數', data: labels.map(d => pick(policyMap, d, 'fed_funds_mid')), borderColor: '#546e7a', borderDash: [5, 3], borderWidth: 1.5, pointRadius: 0, tension: 0, fill: false },
+      { label: '3個月期殖利率(近似短期預期)', data: labels.map(d => pick(policyMap, d, 'implied_3m')), borderColor: '#fb8c00', borderWidth: 1.5, pointRadius: 0, tension: 0.15, fill: false },
+      { label: '1年期殖利率(近似未來1年平均利率預期)', data: labels.map(d => pick(policyMap, d, 'implied_1y')), borderColor: '#1e88e5', borderWidth: 2, pointRadius: 0, tension: 0.15, fill: false },
+    ],
+    labels,
+  );
+
+  // Atlanta Fed MPT 的降息/升息機率(0~100%)，跟上圖共用同一組 labels，只有 mptMap
+  // 有值的日期才畫得出點，其餘日期是 null，視覺上會呈現「資料實際涵蓋的時間點位」。
+  state.bondsMptChart = buildPercentLineChart(
+    'bondsMptChart', state.bondsMptChart,
+    [
+      { label: '降息機率 (Prob: cut)', data: labels.map(d => pick(mptMap, d, 'prob_cut')), borderColor: '#00897b', borderWidth: 2, pointRadius: 0, tension: 0.15, fill: false, spanGaps: false },
+      { label: '升息機率 (Prob: hike)', data: labels.map(d => pick(mptMap, d, 'prob_hike')), borderColor: '#e53935', borderWidth: 2, pointRadius: 0, tension: 0.15, fill: false, spanGaps: false },
+    ],
+    labels,
+  );
+}
+
+// CPI主要分項固定配色，9種顏色循環使用，跟圖例點擊顯示/隱藏搭配方便辨識。
+const CPI_SUB_COLORS = ['#1a2980', '#e53935', '#00897b', '#fb8c00', '#8e24aa', '#546e7a', '#c0ca33', '#3949ab', '#d81b60'];
+
+async function loadBondsInflationRates() {
+  const data = await api('/api/bonds/inflation');
+
+  // CPI / 核心CPI
+  const cpiIds = ['CPI_ALL', 'CPI_CORE'];
+  const cpiLabels = cpiIds.map(id => data[id].label);
+  const cpiColors = ['#1a2980', '#e53935'];
+  const cpiDatesYoy = data.CPI_ALL.series.map(r => r.date);
+  state.bondsCpiYoyChart = buildPercentLineChart(
+    'bondsCpiYoyChart', state.bondsCpiYoyChart,
+    cpiIds.map((id, i) => ({ label: cpiLabels[i], data: data[id].series.map(r => r.yoy), borderColor: cpiColors[i], borderWidth: 2, pointRadius: 0, tension: 0.2, fill: false })),
+    cpiDatesYoy,
+  );
+  state.bondsCpiMomChart = buildPercentLineChart(
+    'bondsCpiMomChart', state.bondsCpiMomChart,
+    cpiIds.map((id, i) => ({ label: cpiLabels[i], data: data[id].series.map(r => r.mom), borderColor: cpiColors[i], borderWidth: 2, pointRadius: 0, tension: 0.2, fill: false })),
+    cpiDatesYoy,
+  );
+
+  // CPI 主要分項 (9類)
+  const subIds = Object.keys(data).filter(id => data[id].group === 'CPI_SUB');
+  const subDates = data[subIds[0]].series.map(r => r.date);
+  state.bondsCpiSubYoyChart = buildPercentLineChart(
+    'bondsCpiSubYoyChart', state.bondsCpiSubYoyChart,
+    subIds.map((id, i) => ({ label: data[id].label, data: data[id].series.map(r => r.yoy), borderColor: CPI_SUB_COLORS[i % CPI_SUB_COLORS.length], borderWidth: 1.5, pointRadius: 0, tension: 0.2, fill: false })),
+    subDates,
+  );
+  state.bondsCpiSubMomChart = buildPercentLineChart(
+    'bondsCpiSubMomChart', state.bondsCpiSubMomChart,
+    subIds.map((id, i) => ({ label: data[id].label, data: data[id].series.map(r => r.mom), borderColor: CPI_SUB_COLORS[i % CPI_SUB_COLORS.length], borderWidth: 1.5, pointRadius: 0, tension: 0.2, fill: false })),
+    subDates,
+  );
+
+  // PCE / 核心PCE
+  const pceIds = ['PCE_ALL', 'PCE_CORE'];
+  const pceLabels = pceIds.map(id => data[id].label);
+  const pceColors = ['#00897b', '#f9a825'];
+  const pceDates = data.PCE_ALL.series.map(r => r.date);
+  state.bondsPceYoyChart = buildPercentLineChart(
+    'bondsPceYoyChart', state.bondsPceYoyChart,
+    pceIds.map((id, i) => ({ label: pceLabels[i], data: data[id].series.map(r => r.yoy), borderColor: pceColors[i], borderWidth: 2, pointRadius: 0, tension: 0.2, fill: false })),
+    pceDates,
+  );
+  state.bondsPceMomChart = buildPercentLineChart(
+    'bondsPceMomChart', state.bondsPceMomChart,
+    pceIds.map((id, i) => ({ label: pceLabels[i], data: data[id].series.map(r => r.mom), borderColor: pceColors[i], borderWidth: 2, pointRadius: 0, tension: 0.2, fill: false })),
+    pceDates,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Macros：PPI、非農就業(依產業別)、家戶調查(失業率/失業原因/失業週數/兼職)
+// ---------------------------------------------------------------------------
+
+// 統計卡片用的漲跌顏色 chip，跟頁面其他地方(ETF卡片「與前日」、Atlanta Fed機率卡片)
+// 共用同一套 up(紅)/down(綠)慣例：>0紅、<0綠、=0不上色。
+function macroDeltaChip(delta, opts) {
+  if (delta === null || delta === undefined) return '';
+  const cls = delta > 0 ? 'up' : delta < 0 ? 'down' : '';
+  const sign = delta > 0 ? '+' : '';
+  const digits = opts && opts.digits !== undefined ? opts.digits : 2;
+  const suffix = (opts && opts.suffix) || '';
+  return `<span class="${cls}">${sign}${delta.toFixed(digits)}${suffix}</span>`;
+}
+
+function macroStatCardHtml(card) {
+  if (card.type === 'rate') {
+    return `
+    <div class="card">
+      <div class="label">${card.label}</div>
+      <div class="value">YoY ${card.yoy.toFixed(2)}%</div>
+      <div class="delta">較上期 ${macroDeltaChip(card.yoy_delta, { suffix: 'pp' })}</div>
+      <div style="margin-top:8px; font-size:13px; color:var(--text);">MoM ${card.mom === null || card.mom === undefined ? '—' : card.mom.toFixed(2) + '%'}</div>
+      <div class="delta">較上期 ${macroDeltaChip(card.mom_delta, { suffix: 'pp' })}</div>
+      <div class="delta" style="color:var(--muted); margin-top:4px;">${card.date || '—'}</div>
+    </div>`;
+  }
+  // type === 'level'
+  const valueStr = card.unit === '%' ? `${card.value.toFixed(1)}%` : `${Math.round(card.value).toLocaleString()} ${card.unit}`;
+  const priorStr = card.prior_value === null || card.prior_value === undefined
+    ? '—'
+    : (card.unit === '%' ? `${card.prior_value.toFixed(1)}%` : `${Math.round(card.prior_value).toLocaleString()} ${card.unit}`);
+  return `
+    <div class="card">
+      <div class="label">${card.label}</div>
+      <div class="value">${valueStr}</div>
+      <div class="delta">較前值 ${macroDeltaChip(card.delta, { digits: card.unit === '%' ? 1 : 0 })}</div>
+      <div class="delta" style="color:var(--muted); margin-top:4px;">${card.date || '—'}（前值 ${priorStr}，${card.prior_date || '—'}）</div>
+    </div>`;
+}
+
+async function loadMacroStats() {
+  const data = await api('/api/macro/stats');
+  document.getElementById('macroStatCards').innerHTML = data.map(macroStatCardHtml).join('');
+}
+
+async function loadMacroPpi() {
+  const data = await api('/api/macro/ppi');
+  const ids = ['PPI_ALL', 'PPI_CORE'];
+  const labels = ids.map(id => data[id].label);
+  const colors = ['#1a2980', '#e53935'];
+  const dates = data.PPI_ALL.series.map(r => r.date);
+  state.macroPpiYoyChart = buildPercentLineChart(
+    'macroPpiYoyChart', state.macroPpiYoyChart,
+    ids.map((id, i) => ({ label: labels[i], data: data[id].series.map(r => r.yoy), borderColor: colors[i], borderWidth: 2, pointRadius: 0, tension: 0.2, fill: false })),
+    dates,
+  );
+  state.macroPpiMomChart = buildPercentLineChart(
+    'macroPpiMomChart', state.macroPpiMomChart,
+    ids.map((id, i) => ({ label: labels[i], data: data[id].series.map(r => r.mom), borderColor: colors[i], borderWidth: 2, pointRadius: 0, tension: 0.2, fill: false })),
+    dates,
+  );
+}
+
+// 跟 buildPercentLineChart 一樣的安全建構模式(一次組好所有options、animation:false、
+// 建立後立刻draw())，但這張是「堆疊長條(各產業月增減) + 一條總數折線」的混合圖，
+// y軸是「千人」不是「%」，tick/tooltip格式也不一樣，所以另外寫一個建構器。
+function buildPayrollChart(canvasId, existing, barDatasets, lineDataset, labels) {
+  if (existing) existing.destroy();
+  const fmt = (v) => (v === null || v === undefined ? '—' : Math.round(v).toLocaleString());
+  const chart = new Chart(document.getElementById(canvasId), {
+    type: 'bar',
+    data: { labels, datasets: [...barDatasets, lineDataset] },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: TXO_INK } },
+        tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${fmt(ctx.parsed.y)} 千人` } },
+      },
+      scales: {
+        x: { stacked: true, ticks: { color: TXO_INK }, grid: { color: TXO_GRID } },
+        y: { stacked: true, ticks: { color: TXO_INK, callback: fmt }, grid: { color: TXO_GRID } },
+      },
+    },
+  });
+  chart.draw();
+  return chart;
+}
+
+const PAYROLL_SUB_COLORS = ['#1a2980', '#e53935', '#00897b', '#fb8c00', '#8e24aa', '#546e7a', '#c0ca33', '#3949ab', '#d81b60', '#00acc1', '#6d4c41'];
+
+async function loadMacroPayroll() {
+  const data = await api('/api/macro/payroll');
+  const totalItem = data.items.find(i => i.series_id === 'CES0000000001');
+  const subItems = data.items.filter(i => i.series_id !== 'CES0000000001');
+  const barDatasets = subItems.map((item, i) => ({
+    type: 'bar', label: item.label, data: item.changes,
+    backgroundColor: PAYROLL_SUB_COLORS[i % PAYROLL_SUB_COLORS.length],
+    stack: 'payroll',
+  }));
+  const lineDataset = {
+    type: 'line', label: totalItem.label, data: totalItem.changes,
+    borderColor: '#111111', backgroundColor: 'transparent', borderWidth: 2.5, pointRadius: 0, tension: 0.15, fill: false,
+  };
+  state.macroPayrollChart = buildPayrollChart('macroPayrollChart', state.macroPayrollChart, barDatasets, lineDataset, data.dates);
+}
+
+async function loadMacroHouseholdRates() {
+  const data = await api('/api/macro/household-rates');
+  const ids = ['LNS14000000', 'LNS11300000', 'LNS12300000'];
+  const colors = ['#e53935', '#1a2980', '#00897b'];
+  const dates = data[ids[0]].series.map(r => r.date);
+  state.macroHouseholdRatesChart = buildPercentLineChart(
+    'macroHouseholdRatesChart', state.macroHouseholdRatesChart,
+    ids.map((id, i) => ({ label: data[id].label, data: data[id].series.map(r => r.value), borderColor: colors[i], borderWidth: 2, pointRadius: 0, tension: 0.2, fill: false })),
+    dates,
+  );
+}
+
+// 「失業原因／失業週數／兼職原因」共用的堆疊面積圖建構器，強調隨時間變化的組成
+// 比例(跟非農就業的堆疊長條互相呼應，但這幾張是連續的水準數字比較適合用面積堆疊
+// 而不是逐月長條)。y軸單位是「千人」，用千分位逗號顯示，不用%格式。
+function buildStackedAreaChart(canvasId, existing, datasets, labels) {
+  if (existing) existing.destroy();
+  const fmt = (v) => (v === null || v === undefined ? '—' : Math.round(v).toLocaleString());
+  const chart = new Chart(document.getElementById(canvasId), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: datasets.map(d => ({ ...d, fill: true, tension: 0.15, pointRadius: 0, borderWidth: 1 })),
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: TXO_INK } },
+        tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${fmt(ctx.parsed.y)} 千人` } },
+      },
+      scales: {
+        x: { stacked: true, ticks: { color: TXO_INK }, grid: { color: TXO_GRID } },
+        y: { stacked: true, ticks: { color: TXO_INK, callback: fmt }, grid: { color: TXO_GRID } },
+      },
+    },
+  });
+  chart.draw();
+  return chart;
+}
+
+async function loadMacroUnemployReason() {
+  const data = await api('/api/macro/unemployment-reason');
+  const ids = Object.keys(data);
+  const dates = data[ids[0]].series.map(r => r.date);
+  const colors = ['#e53935', '#fb8c00', '#1a2980', '#00897b'];
+  state.macroUnemployReasonChart = buildStackedAreaChart(
+    'macroUnemployReasonChart', state.macroUnemployReasonChart,
+    ids.map((id, i) => ({
+      label: data[id].label, data: data[id].series.map(r => r.value),
+      borderColor: colors[i % colors.length], backgroundColor: colors[i % colors.length] + '55',
+    })),
+    dates,
+  );
+}
+
+async function loadMacroUnemployDuration() {
+  const data = await api('/api/macro/unemployment-duration');
+  const order = ['LT5', 'W5_14', 'W15_26', 'W27_PLUS'];
+  const dates = data[order[0]].series.map(r => r.date);
+  const colors = ['#43a047', '#fbc02d', '#fb8c00', '#e53935'];
+  state.macroUnemployDurationChart = buildStackedAreaChart(
+    'macroUnemployDurationChart', state.macroUnemployDurationChart,
+    order.map((id, i) => ({
+      label: data[id].label, data: data[id].series.map(r => r.value),
+      borderColor: colors[i], backgroundColor: colors[i] + '55',
+    })),
+    dates,
+  );
+}
+
+async function loadMacroParttime() {
+  const data = await api('/api/macro/parttime');
+  const ids = Object.keys(data);
+  const dates = data[ids[0]].series.map(r => r.date);
+  const colors = ['#e53935', '#1a2980'];
+  state.macroParttimeChart = buildStackedAreaChart(
+    'macroParttimeChart', state.macroParttimeChart,
+    ids.map((id, i) => ({
+      label: data[id].label, data: data[id].series.map(r => r.value),
+      borderColor: colors[i % colors.length], backgroundColor: colors[i % colors.length] + '55',
+    })),
+    dates,
+  );
+}
+
+async function initMacrosView() {
+  if (!state.macrosInitialized) {
+    state.macrosInitialized = true;
+    await loadMacroStats();
+    await loadBondsInflationRates();
+    await loadMacroPpi();
+    await loadMacroPayroll();
+    await loadMacroHouseholdRates();
+    await loadMacroUnemployReason();
+    await loadMacroUnemployDuration();
+    await loadMacroParttime();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Bond Auction：美債標售金額 + Bid-to-Cover 比率 (10年期／30年期)
+// ---------------------------------------------------------------------------
+
+// 標售金額(長條，左軸 $B) + Bid-to-Cover比率(折線，右軸倍數) 的雙軸混合圖，
+// 跟泰勒法則圖用同一套安全建構模式(一次組好所有options、animation:false、
+// 建立後立刻draw())，但這張需要左右不同單位的雙Y軸，另外寫一個建構器。
+function buildAuctionChart(canvasId, existing, amountValues, btcValues, labels) {
+  if (existing) existing.destroy();
+  const chart = new Chart(document.getElementById(canvasId), {
+    data: {
+      labels,
+      datasets: [
+        {
+          type: 'bar', label: '標售金額 (Total Accepted)', data: amountValues,
+          backgroundColor: 'rgba(26,41,128,0.55)', yAxisID: 'y',
+        },
+        {
+          type: 'line', label: 'Bid-to-Cover 比率', data: btcValues,
+          borderColor: '#e53935', backgroundColor: 'transparent', borderWidth: 2,
+          pointRadius: 2, tension: 0.15, fill: false, yAxisID: 'y1',
+        },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: TXO_INK } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ctx.dataset.yAxisID === 'y1'
+              ? `${ctx.dataset.label}: ${ctx.parsed.y === null ? '—' : ctx.parsed.y.toFixed(2) + 'x'}`
+              : `${ctx.dataset.label}: ${ctx.parsed.y === null ? '—' : '$' + ctx.parsed.y.toFixed(1) + 'B'}`,
+          },
+        },
+      },
+      scales: {
+        x: { ticks: { color: TXO_INK }, grid: { color: TXO_GRID } },
+        y: { position: 'left', ticks: { color: TXO_INK, callback: (v) => '$' + v + 'B' }, grid: { color: TXO_GRID } },
+        y1: { position: 'right', ticks: { color: TXO_INK, callback: (v) => v.toFixed(1) + 'x' }, grid: { display: false } },
+      },
+    },
+  });
+  chart.draw();
+  return chart;
+}
+
+async function loadAuctionChart(canvasId, stateKey, amountId, btcId) {
+  const data = await api(`/api/bonds/series?ids=${amountId},${btcId}`);
+  const { dates, values } = alignBondSeries(data, [amountId, btcId]);
+  state[stateKey] = buildAuctionChart(canvasId, state[stateKey], values[0], values[1], dates);
+}
+
+async function initAuctionsView() {
+  if (!state.auctionsInitialized) {
+    state.auctionsInitialized = true;
+    await loadAuctionChart('auction10yChart', 'auction10yChart', 'AUCTION_10Y_AMOUNT', 'AUCTION_10Y_BTC');
+    await loadAuctionChart('auction30yChart', 'auction30yChart', 'AUCTION_30Y_AMOUNT', 'AUCTION_30Y_BTC');
+  }
+}
+
+async function initBondsView() {
+  if (!state.bondsInitialized) {
+    state.bondsInitialized = true;
+    await loadBondsStats();
+    await loadBondsYieldCurve();
+    await loadBondsAcmTermPremium();
+    await loadBondsSpreadTrend();
+    await loadBondsCreditTrend();
+    await loadBondsInflationTrend();
+    await loadBondsPolicyExpectation();
+  }
+}
+
+document.querySelectorAll('.navlink').forEach(btn => {
+  btn.onclick = () => switchView(btn.dataset.view);
+});
+
+document.getElementById('stockCompareInput').addEventListener('change', (e) => {
+  const code = e.target.value.trim().split(/\s+/)[0];
+  if (state.allStocks.some(s => s.code === code)) loadStockCompare(code);
+});
+
+(async function init() {
+  await loadFunds();
+  if (state.ticker) await selectTicker(state.ticker);
+})();
+</script>
+</body>
+</html>
