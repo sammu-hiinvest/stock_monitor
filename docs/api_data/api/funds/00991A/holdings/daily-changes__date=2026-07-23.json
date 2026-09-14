@@ -1,0 +1,1 @@
+{"date": "2026-07-23", "prev_date": "2026-07-22", "added": [{"code": "2357", "name": "華碩電腦", "shares": 1000.0, "weight_pct": 0.001}], "removed": [{"code": "6488", "name": "環球晶圓", "shares": 300000.0, "weight_pct": 0.432}], "increased": [{"code": "2454", "name": "聯發科技", "shares": 1080000.0, "weight_pct": 5.478, "prev_shares": 1000000.0, "share_diff": 80000.0}], "decreased": []}

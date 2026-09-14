@@ -81,6 +81,7 @@
     <div>
       <button class="primary" id="fetchNowBtn">立即抓取最新資料</button>
       <span id="status"></span>
+      <span id="staticSnapshotNote" style="display:none; color:var(--muted); font-size:12px;"></span>
     </div>
   </header>
 
@@ -425,7 +426,28 @@ const fmtPct = (n) => n === null || n === undefined ? '—' : `${Number(n).toFix
 const TXO_INK = '#111111';
 const TXO_GRID = '#dddddd';
 
+// STATIC_MODE 是給 GitHub Pages 靜態展示版用的：那個版本沒有 FastAPI 後端可以問，
+// scripts/export_static.py 產生 docs/index.html 時會在這段程式碼之前插入
+// `window.STATIC_MODE = true;`，讓 api() 改成讀預先匯出的靜態 JSON 檔而不是打
+// 即時的 /api/... 端點；本機用 FastAPI 開的 app/static/index.html 完全不受影響
+// (STATIC_MODE 不存在、維持原本 fetch(path) 的行為)。
+function staticApiPath(path) {
+  // route 可能已經帶有 encodeURIComponent() 編碼過的片段(例如個股代碼裡的空白)，
+  // 這裡先解碼回「字面上」的路徑，讓存檔案名稱時用的是同一套沒有 %XX 的字串——
+  // 靜態檔案伺服器(GitHub Pages / python -m http.server)收到請求時一定會先把
+  // 路徑 percent-decode 過一輪才去對應到實際檔案，如果存檔時用的是「還沒解碼」
+  // 的字串當檔名，兩邊就會對不起來、全部變成404。
+  const [route, query] = path.split('?');
+  const decodedRoute = decodeURIComponent(route);
+  return query ? `api_data${decodedRoute}__${query}.json` : `api_data${decodedRoute}.json`;
+}
+
 async function api(path, opts) {
+  if (window.STATIC_MODE) {
+    const res = await fetch(staticApiPath(path));
+    if (!res.ok) throw new Error(`${path} -> ${res.status}`);
+    return res.json();
+  }
   const res = await fetch(path, opts);
   if (!res.ok) throw new Error(`${path} -> ${res.status}`);
   return res.json();
@@ -626,23 +648,34 @@ async function selectTicker(ticker) {
   await loadDatesAndHoldings();
 }
 
-document.getElementById('fetchNowBtn').onclick = async () => {
-  const btn = document.getElementById('fetchNowBtn');
-  const status = document.getElementById('status');
-  btn.disabled = true;
-  status.textContent = '抓取中，請稍候 (約需 10-30 秒)...';
-  try {
-    const result = await api('/api/fetch-now', { method: 'POST' });
-    const ok = Object.values(result).filter(v => v === 'ok').length;
-    status.textContent = `完成：${ok}/${Object.keys(result).length} 檔成功`;
-    await loadFunds();
-    await selectTicker(state.ticker);
-  } catch (e) {
-    status.textContent = '抓取失敗：' + e.message;
-  } finally {
-    btn.disabled = false;
-  }
-};
+// 靜態展示版(STATIC_MODE)沒有後端可以觸發即時抓取，把按鈕換成「最後更新時間」的
+// 靜態說明文字；本機 FastAPI 版本(STATIC_MODE 未定義)維持原本可以按的行為。
+if (window.STATIC_MODE) {
+  document.getElementById('fetchNowBtn').style.display = 'none';
+  const note = document.getElementById('staticSnapshotNote');
+  note.style.display = '';
+  note.textContent = window.STATIC_SNAPSHOT_TIME
+    ? `靜態展示版・資料快照時間：${window.STATIC_SNAPSHOT_TIME}（即時互動功能請改用本機版）`
+    : '靜態展示版（即時互動功能請改用本機版）';
+} else {
+  document.getElementById('fetchNowBtn').onclick = async () => {
+    const btn = document.getElementById('fetchNowBtn');
+    const status = document.getElementById('status');
+    btn.disabled = true;
+    status.textContent = '抓取中，請稍候 (約需 10-30 秒)...';
+    try {
+      const result = await api('/api/fetch-now', { method: 'POST' });
+      const ok = Object.values(result).filter(v => v === 'ok').length;
+      status.textContent = `完成：${ok}/${Object.keys(result).length} 檔成功`;
+      await loadFunds();
+      await selectTicker(state.ticker);
+    } catch (e) {
+      status.textContent = '抓取失敗：' + e.message;
+    } finally {
+      btn.disabled = false;
+    }
+  };
+}
 
 async function initStockCompareView() {
   if (state.allStocks.length) return;

@@ -1,0 +1,1 @@
+{"date": "2026-03-16", "prev_date": "2026-03-13", "added": [], "removed": [], "increased": [{"code": "8046", "name": "南電", "shares": 560000.0, "weight_pct": 2.16, "prev_shares": 160000.0, "share_diff": 400000.0}], "decreased": [{"code": "2308", "name": "台達電", "shares": 270000.0, "weight_pct": 2.5, "prev_shares": 396000.0, "share_diff": -126000.0}]}

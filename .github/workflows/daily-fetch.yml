@@ -3,7 +3,8 @@ name: Daily Data Fetch
 # 跟本機 Windows 工作排程器(scripts/setup_scheduled_task.ps1)平行運作的雲端版本：
 # 同一套 scripts/fetch_daily.py，改在 GitHub Actions 上跑，抓完後把 data/ 目錄
 # (SQLite DB + 原始 JSON 備份 + 執行紀錄) commit 回 repo，讓資料就算本機電腦沒開機
-# 也能持續更新。
+# 也能持續更新。抓完資料後順便跑 scripts/export_static.py 重新產生 docs/ 靜態展示版
+# (GitHub Pages 設定成從 main branch 的 /docs 發布的話，網站內容就會跟著每天更新)。
 #
 # 注意：本機排程跟這個 workflow 都會各自寫入/推送 data/etf.db，兩邊沒有自動同步，
 # 本機 git pull 時如果跟未推送的本機變更衝突，SQLite 是二進位檔沒辦法 merge，
@@ -36,11 +37,14 @@ jobs:
       - name: Run daily fetch (ETF + TXO + 期貨 + 債市 + MPT + CPI + 總經 + ACM + 標售)
         run: python scripts/fetch_daily.py
 
-      - name: Commit and push data updates
+      - name: Regenerate GitHub Pages 靜態展示版 (docs/)
+        run: python scripts/export_static.py
+
+      - name: Commit and push data + static site updates
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/
+          git add data/ docs/
           if git diff --staged --quiet; then
             echo "No data changes to commit."
           else
