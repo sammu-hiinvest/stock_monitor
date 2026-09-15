@@ -12,8 +12,10 @@ name: Daily Data Fetch
 
 on:
   schedule:
-    # 17:00 台北時間(UTC+8) = 09:00 UTC，對應本機排程的週一~週五 17:00
-    - cron: "0 9 * * 1-5"
+    # 17:00 台北時間(UTC+8) = 09:00 UTC，對應本機排程的週一~週五 17:00。故意不排在
+    # 整點(:00)：GitHub 官方文件明講 schedule event 在「每小時整點附近」最容易因為
+    # 排隊塞車而延遲、甚至偶爾整個沒觸發，往後錯開5分鐘降低撞在尖峰的機率。
+    - cron: "5 9 * * 1-5"
   workflow_dispatch: {}
 
 permissions:
@@ -38,6 +40,11 @@ jobs:
         run: python scripts/fetch_daily.py
 
       - name: Regenerate GitHub Pages 靜態展示版 (docs/)
+        # 這步驟失敗不該連累 data/ 的抓取結果沒被 commit——跟 fetch_daily.py 裡
+        # 每個資料源各自 try/except、互不連坐是同一個精神。continue-on-error 讓
+        # 即使這步驟掛掉，下一步還是會把 data/ 的更新 push 上去(docs/ 那天就先
+        # 維持前一天的版本，下次排程成功時自然會補上)。
+        continue-on-error: true
         run: python scripts/export_static.py
 
       - name: Commit and push data + static site updates
