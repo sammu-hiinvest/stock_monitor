@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>山姆台股觀測站</title>
-<script>window.STATIC_MODE = true; window.STATIC_SNAPSHOT_TIME = "2026-09-16 07:02 UTC";</script>
+<script>window.STATIC_MODE = true; window.STATIC_SNAPSHOT_TIME = "2026-09-17 12:25 UTC";</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <style>
   :root {
@@ -89,6 +89,7 @@
   <nav class="mainnav">
     <button class="navlink active" data-view="etf">ETF 總覽</button>
     <button class="navlink" data-view="stock">個股跨 ETF 比較</button>
+    <button class="navlink" data-view="institutional">法人現貨</button>
     <button class="navlink" data-view="txo">台指選擇權</button>
     <button class="navlink" data-view="futures">大盤期貨</button>
     <button class="navlink" data-view="bonds">債市</button>
@@ -157,6 +158,36 @@
       <datalist id="stockListOptions"></datalist>
     </div>
     <div id="stockCompareBody"><div class="empty">請選擇一檔個股</div></div>
+  </div>
+</div>
+
+<div id="institutionalView" style="display:none;">
+  <div class="page-note">
+    資料來源：證交所(TWSE)「每日三大法人買賣超日報(T86)」+ 上市公司基本資料、
+    櫃買中心(TPEx) 三大法人買賣明細 + 上櫃公司基本資料，皆為官方公開 API、不需要金鑰。
+    Goodinfo 同名排行頁有 Cloudflare 人機驗證擋住(requests/瀏覽器都進不去)，這裡改用
+    官方原始資料自己算「近兩個交易日買賣超股數累計 ÷ 已發行股數」。上櫃(TPEx)資料
+    來源不支援回溯查詢，只能拿到最新一個交易日，剛啟用這個功能的第一天可能只有
+    一天資料，隔天排程執行後會自動補齊兩天。
+  </div>
+
+  <div class="panel" id="institutionalOverlapPanel">
+    <h2>重複上榜個股</h2>
+    <div id="institutionalOverlapList"></div>
+  </div>
+
+  <div class="panel">
+    <div class="toolbar">
+      <h2 style="margin:0;">外資買超佔股本比重排行 (外本比)</h2>
+      <span style="flex:1"></span>
+      <span id="institutionalDatesLabel" style="color:var(--muted); font-size:12px;"></span>
+    </div>
+    <div id="institutionalForeignTableWrap"></div>
+  </div>
+
+  <div class="panel">
+    <h2>投信買超佔股本比重排行 (投本比)</h2>
+    <div id="institutionalTrustTableWrap"></div>
   </div>
 </div>
 
@@ -417,6 +448,7 @@ const state = {
   macroPpiYoyChart: null, macroPpiMomChart: null, macroPayrollChart: null, macroHouseholdRatesChart: null,
   macroUnemployReasonChart: null, macroUnemployDurationChart: null, macroParttimeChart: null,
   auctionsInitialized: false, auction10yChart: null, auction30yChart: null,
+  institutionalInitialized: false,
 };
 
 const fmtNum = (n, digits=0) => n === null || n === undefined ? '—' :
@@ -811,6 +843,7 @@ async function switchView(view) {
   document.querySelectorAll('.navlink').forEach(b => b.classList.toggle('active', b.dataset.view === view));
   document.getElementById('etfView').style.display = view === 'etf' ? '' : 'none';
   document.getElementById('stockCompareView').style.display = view === 'stock' ? '' : 'none';
+  document.getElementById('institutionalView').style.display = view === 'institutional' ? '' : 'none';
   document.getElementById('txoView').style.display = view === 'txo' ? '' : 'none';
   document.getElementById('futuresView').style.display = view === 'futures' ? '' : 'none';
   document.getElementById('bondsView').style.display = view === 'bonds' ? '' : 'none';
@@ -825,6 +858,8 @@ async function switchView(view) {
       document.getElementById('stockCompareInput').value = `${first.code} ${first.name || ''}`;
       await loadStockCompare(first.code);
     }
+  } else if (view === 'institutional') {
+    await initInstitutionalView();
   } else if (view === 'txo') {
     await initTxoView();
   } else if (view === 'futures') {
@@ -1777,6 +1812,77 @@ async function loadAuctionChart(canvasId, stateKey, amountId, btcId) {
   const data = await api(`/api/bonds/series?ids=${amountId},${btcId}`);
   const { dates, values } = alignBondSeries(data, [amountId, btcId]);
   state[stateKey] = buildAuctionChart(canvasId, state[stateKey], values[0], values[1], dates);
+}
+
+// ---------------------------------------------------------------------------
+// 法人現貨：外資/投信買超佔股本比重排行
+// ---------------------------------------------------------------------------
+
+function renderInstitutionalTable(wrapId, items, metric) {
+  const netField = metric === 'foreign' ? 'foreign_net_shares' : 'trust_net_shares';
+  const pctField = metric === 'foreign' ? 'foreign_pct' : 'trust_pct';
+  const wrap = document.getElementById(wrapId);
+  if (!items.length) {
+    wrap.innerHTML = '<div class="empty">尚無資料，請先按「立即抓取最新資料」</div>';
+    return;
+  }
+  const rows = items.map((item, i) => {
+    const marketLabel = item.market === 'TWSE' ? '上市' : '上櫃';
+    const rowStyle = item.overlap ? ' style="background:rgba(0,137,123,0.08);"' : '';
+    const badge = item.overlap ? '<span class="badge new">重複上榜</span>' : '';
+    return `
+      <tr${rowStyle}>
+        <td class="num">${i + 1}</td>
+        <td>${item.code}</td>
+        <td>${item.name || ''}${badge}</td>
+        <td>${marketLabel}</td>
+        <td class="num">${fmtNum(item[netField])}</td>
+        <td class="num">${item[pctField].toFixed(2)}%</td>
+      </tr>`;
+  }).join('');
+  wrap.innerHTML = `
+    <table>
+      <thead><tr>
+        <th class="num">排名</th><th>代碼</th><th>名稱</th><th>市場</th>
+        <th class="num">買賣超股數(近2日合計)</th><th class="num">占股本比重</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function renderInstitutionalOverlap(data) {
+  const wrap = document.getElementById('institutionalOverlapList');
+  if (!data.overlap_codes.length) {
+    wrap.innerHTML = '<div class="empty">目前外本比／投本比排行沒有重複上榜的個股</div>';
+    return;
+  }
+  const byCode = {};
+  data.foreign.forEach(x => { byCode[x.code] = x; });
+  data.trust.forEach(x => { if (!byCode[x.code]) byCode[x.code] = x; });
+  const items = data.overlap_codes.map(c => byCode[c]).filter(Boolean);
+  const cards = items.map(item => `
+    <div class="card">
+      <div class="label">${item.code} ${item.name || ''}</div>
+      <div class="value">外本比 ${item.foreign_pct.toFixed(2)}%</div>
+      <div class="delta" style="color:var(--muted);">投本比 ${item.trust_pct.toFixed(2)}%</div>
+    </div>`).join('');
+  wrap.innerHTML = `<div class="cards">${cards}</div>`;
+}
+
+async function loadInstitutionalRanking() {
+  const data = await api('/api/institutional-stock/ranking?top_n=50');
+  document.getElementById('institutionalDatesLabel').textContent =
+    data.dates.length ? `統計區間：${data.dates.slice().reverse().join(' ~ ')}` : '';
+  renderInstitutionalOverlap(data);
+  renderInstitutionalTable('institutionalForeignTableWrap', data.foreign, 'foreign');
+  renderInstitutionalTable('institutionalTrustTableWrap', data.trust, 'trust');
+}
+
+async function initInstitutionalView() {
+  if (!state.institutionalInitialized) {
+    state.institutionalInitialized = true;
+    await loadInstitutionalRanking();
+  }
 }
 
 async function initAuctionsView() {
