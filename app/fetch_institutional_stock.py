@@ -14,12 +14,15 @@ from datetime import date, datetime, timedelta
 from app.db import (
     init_db,
     replace_institutional_stock_daily,
+    replace_stock_daily_quote,
     session,
     upsert_shares_outstanding,
 )
 from app.scrapers.institutional_stock import (
     fetch_tpex_daily,
+    fetch_tpex_daily_quotes,
     fetch_tpex_shares_outstanding,
+    fetch_twse_daily_quotes,
     fetch_twse_shares_outstanding,
     fetch_twse_t86,
 )
@@ -52,6 +55,21 @@ def run_latest(lookback_days: int = DEFAULT_LOOKBACK_DAYS) -> dict:
             twse_days_fetched.append(d.isoformat())
     result["twse_days"] = twse_days_fetched
 
+    # --- 上市個股當日收盤價/漲跌幅(標記漲停/跌停用)：只抓最新一個交易日就好 ---
+    if twse_days_fetched:
+        latest_twse_date = twse_days_fetched[0]  # 迴圈從今天往回找，第一筆就是最新交易日
+        try:
+            quote_rows = fetch_twse_daily_quotes(date.fromisoformat(latest_twse_date))
+            for r in quote_rows:
+                r["fetched_at"] = fetched_at
+            if quote_rows:
+                with session() as conn:
+                    replace_stock_daily_quote(conn, latest_twse_date, "TWSE", quote_rows)
+            result["twse_quote_rows"] = len(quote_rows)
+        except Exception as exc:  # noqa: BLE001
+            log.exception("TWSE 個股當日收盤價抓取失敗: %s", exc)
+            result["twse_quote_error"] = str(exc)
+
     # --- 上櫃(TPEx)：只能拿最新一個交易日 ---
     try:
         tpex_date, tpex_rows = fetch_tpex_daily()
@@ -67,6 +85,19 @@ def run_latest(lookback_days: int = DEFAULT_LOOKBACK_DAYS) -> dict:
     except Exception as exc:  # noqa: BLE001
         log.exception("TPEx 三大法人個股買賣超抓取失敗: %s", exc)
         result["tpex_error"] = str(exc)
+
+    # --- 上櫃個股當日收盤價/漲跌幅：同樣只能拿最新一個交易日 ---
+    try:
+        quote_tpex_date, quote_tpex_rows = fetch_tpex_daily_quotes()
+        if quote_tpex_date and quote_tpex_rows:
+            for r in quote_tpex_rows:
+                r["fetched_at"] = fetched_at
+            with session() as conn:
+                replace_stock_daily_quote(conn, quote_tpex_date, "TPEX", quote_tpex_rows)
+            result["tpex_quote_rows"] = len(quote_tpex_rows)
+    except Exception as exc:  # noqa: BLE001
+        log.exception("TPEx 個股當日收盤價抓取失敗: %s", exc)
+        result["tpex_quote_error"] = str(exc)
 
     # --- 股本(已發行股數)：兩邊整包重抓覆寫 ---
     shares_rows = []

@@ -499,6 +499,9 @@ def institutional_stock_ranking(top_n: int = 50):
     剛啟用這個功能的第一天只會有一天資料，隔天排程執行後才會自然累積到兩天。
     LEFT JOIN 對不到股本資料的代碼(通常是ETF/受益憑證，沒有「股本」概念)會被排除，
     排行只保留一般公司股票。
+
+    每筆也會附上 change_pct(當日漲跌幅%，來源 stock_daily_quote 的最新一個交易日)，
+    前端用來標記漲停(>9.5%)/跌停(<=-9.5%)；查不到當日報價的代碼回傳 null。
     """
     conn = get_connection()
     try:
@@ -524,6 +527,14 @@ def institutional_stock_ranking(top_n: int = 50):
             dates,
         ).fetchall()
 
+        # 當日漲跌幅(標記漲停/跌停用)：只取「最近一個交易日」(dates[0])的收盤價資料，
+        # 跟外本比/投本比的兩日累計視窗不同義，單純顯示給使用者看當天股價表現。
+        quote_rows = conn.execute(
+            "SELECT code, change_pct FROM stock_daily_quote WHERE trade_date = ?",
+            (dates[0],),
+        ).fetchall()
+        change_pct_by_code = {r["code"]: r["change_pct"] for r in quote_rows}
+
         items = []
         for r in rows:
             shares_out = r["shares_outstanding"]
@@ -538,6 +549,7 @@ def institutional_stock_ranking(top_n: int = 50):
                     "foreign_pct": round(foreign_net / shares_out * 100, 3),
                     "trust_net_shares": trust_net,
                     "trust_pct": round(trust_net / shares_out * 100, 3),
+                    "change_pct": change_pct_by_code.get(r["code"]),
                 }
             )
 

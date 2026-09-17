@@ -177,6 +177,21 @@ CREATE TABLE IF NOT EXISTS stock_shares_outstanding (
     fetched_at TEXT NOT NULL,
     PRIMARY KEY (code)
 );
+
+-- 個股當日收盤價與漲跌幅，只保留每次抓取當下的「最新一個交易日」，
+-- 用於法人現貨排行表標記漲停/跌停。來源：上市 MI_INDEX 每日收盤行情 /
+-- 上櫃 tpex_mainboard_daily_close_quotes OpenAPI。
+CREATE TABLE IF NOT EXISTS stock_daily_quote (
+    trade_date TEXT NOT NULL,
+    market TEXT NOT NULL,
+    code TEXT NOT NULL,
+    close REAL,
+    change_pct REAL,
+    fetched_at TEXT NOT NULL,
+    PRIMARY KEY (trade_date, code)
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_quote_date ON stock_daily_quote(trade_date);
 """
 
 
@@ -345,6 +360,20 @@ def upsert_shares_outstanding(conn: sqlite3.Connection, rows: list[dict]) -> Non
             fetched_at = excluded.fetched_at
         """,
         rows,
+    )
+
+
+def replace_stock_daily_quote(conn: sqlite3.Connection, trade_date: str, market: str, rows: list[dict]) -> None:
+    """rows 為 [{"code","close","change_pct","fetched_at"}, ...]。同樣採「先刪後插」，
+    且比照 replace_institutional_stock_daily 的教訓，DELETE 連 market 一起篩選。
+    """
+    conn.execute("DELETE FROM stock_daily_quote WHERE trade_date = ? AND market = ?", (trade_date, market))
+    conn.executemany(
+        """
+        INSERT INTO stock_daily_quote (trade_date, market, code, close, change_pct, fetched_at)
+        VALUES (:trade_date, :market, :code, :close, :change_pct, :fetched_at)
+        """,
+        [{**r, "trade_date": trade_date, "market": market} for r in rows],
     )
 
 

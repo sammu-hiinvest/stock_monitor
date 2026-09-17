@@ -126,6 +126,17 @@ python scripts/import_historical_zip.py "Active_ETFs_All_Data.zip"
   一定要同時用 `trade_date` **和** `market` 篩選 —— 因為上市和上櫃常常
   是同一個交易日，如果只用 `trade_date` 篩選，後執行的市場(如 TPEx)插入
   時的 DELETE 會把先前已經寫入、同一天的另一個市場(TWSE)資料整批砍掉。
+  `stock_daily_quote`(見下方) 也比照同一個作法。
+- 排行表格另外附上「當日漲跌幅」欄位，>9.5% 標記為漲停(紅底)、<=-9.5% 標記為
+  跌停(綠底)。資料來源：
+  - 上市：MI_INDEX「每日收盤行情」
+    `https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?date=YYYYMMDD&type=ALLBUT0999&response=json`
+    漲跌方向藏在「漲跌(+/-)」欄位的 HTML 顏色(`color:red`=漲 / `color:green`=跌)，
+    要自己配合「漲跌價差」還原正負號、算出百分比。
+  - 上櫃：`https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes`
+    （`Change` 欄位本身就帶正負號；同樣只能拿到最新一個交易日）
+  - 只抓「最新一個交易日」存進 `stock_daily_quote` 表，跟外本比/投本比的兩日
+    累計視窗是分開的概念，純粹顯示當天股價表現。
 
 ## 台指選擇權 (TXO)
 
