@@ -23,6 +23,7 @@ from app.fetch_auctions import run_latest as run_auctions_latest  # noqa: E402
 from app.fetch_bonds import run_latest as run_bonds_latest  # noqa: E402
 from app.fetch_cpi import run_latest as run_cpi_latest  # noqa: E402
 from app.fetch_futures import run_latest as run_futures_latest  # noqa: E402
+from app.fetch_institutional_stock import run_latest as run_institutional_stock_latest  # noqa: E402
 from app.fetch_macro import run_latest as run_macro_latest  # noqa: E402
 from app.fetch_mpt import run_latest as run_mpt_latest  # noqa: E402
 from app.fetch_txo import run_latest as run_txo_latest  # noqa: E402
@@ -37,6 +38,10 @@ if __name__ == "__main__":
         run_futures_latest()
     except Exception as exc:  # noqa: BLE001 - 大盤期貨抓取失敗不影響其他資料已經寫入
         print(f"大盤期貨抓取失敗: {exc}")
+    try:
+        run_institutional_stock_latest()
+    except Exception as exc:  # noqa: BLE001 - 法人現貨抓取失敗不影響其他資料已經寫入
+        print(f"法人現貨抓取失敗: {exc}")
     try:
         run_bonds_latest()
     except Exception as exc:  # noqa: BLE001 - 債市抓取失敗不影響其他資料已經寫入

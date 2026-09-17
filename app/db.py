@@ -148,6 +148,35 @@ CREATE TABLE IF NOT EXISTS mpt_probability (
     fetched_at TEXT NOT NULL,
     PRIMARY KEY (obs_date)
 );
+
+-- 法人現貨：上市(TWSE T86)/上櫃(TPEx tpex_3insti_daily_trading) 三大法人個股買賣超，
+-- 官方原始資料只給「股數」，跟 stock_shares_outstanding 的已發行股數一起才能算出
+-- 「買超佔股本比重」。TPEx 的來源端點不支援指定日期查詢，只能拿到最新一個交易日，
+-- 所以這張表的歷史深度會隨每天排程執行慢慢累積，不像上市可以用 T86 一次回溯多天。
+CREATE TABLE IF NOT EXISTS institutional_stock_daily (
+    trade_date TEXT NOT NULL,          -- 交易日期 YYYY-MM-DD
+    market TEXT NOT NULL,              -- TWSE=上市 / TPEX=上櫃
+    code TEXT NOT NULL,
+    name TEXT,
+    foreign_net_shares REAL,           -- 外資及陸資買賣超股數(不含外資自營商)
+    trust_net_shares REAL,             -- 投信買賣超股數
+    dealer_net_shares REAL,            -- 自營商買賣超股數
+    fetched_at TEXT NOT NULL,
+    PRIMARY KEY (trade_date, code)
+);
+
+CREATE INDEX IF NOT EXISTS idx_insti_stock_date ON institutional_stock_daily(trade_date);
+
+-- 個股已發行股數(股本)，來源：上市/上櫃公司基本資料 OpenAPI，每次執行整包覆寫(資料
+-- 量小、變動不頻繁，用最新一份覆寫最省事，不需要保留歷史)。
+CREATE TABLE IF NOT EXISTS stock_shares_outstanding (
+    code TEXT NOT NULL,
+    market TEXT NOT NULL,
+    name TEXT,
+    shares_outstanding REAL,
+    fetched_at TEXT NOT NULL,
+    PRIMARY KEY (code)
+);
 """
 
 
@@ -277,6 +306,42 @@ def upsert_mpt_probability(conn: sqlite3.Connection, rows: list[dict]) -> None:
             reference_meeting = excluded.reference_meeting,
             prob_cut = excluded.prob_cut,
             prob_hike = excluded.prob_hike,
+            fetched_at = excluded.fetched_at
+        """,
+        rows,
+    )
+
+
+def replace_institutional_stock_daily(conn: sqlite3.Connection, trade_date: str, market: str, rows: list[dict]) -> None:
+    """rows 為 [{"market","code","name","foreign_net_shares","trust_net_shares",
+    "dealer_net_shares","fetched_at"}, ...]。用整天刪除重建(不是 upsert)，因為
+    T86/TPEx 都是「當天完整名單」一次回傳，刪除重建比逐檔比對簡單。**刪除一定要
+    連 market 一起篩選**：上市(TWSE)跟上櫃(TPEX)常常是同一個交易日，如果只用
+    trade_date 刪除，後執行的那個市場會把先前另一個市場當天剛寫進去的資料整批
+    清空(已經實測踩過這個坑)。
+    """
+    conn.execute("DELETE FROM institutional_stock_daily WHERE trade_date = ? AND market = ?", (trade_date, market))
+    conn.executemany(
+        """
+        INSERT INTO institutional_stock_daily
+            (trade_date, market, code, name, foreign_net_shares, trust_net_shares, dealer_net_shares, fetched_at)
+        VALUES
+            (:trade_date, :market, :code, :name, :foreign_net_shares, :trust_net_shares, :dealer_net_shares, :fetched_at)
+        """,
+        [{**r, "trade_date": trade_date} for r in rows],
+    )
+
+
+def upsert_shares_outstanding(conn: sqlite3.Connection, rows: list[dict]) -> None:
+    """rows 為 [{"code","market","name","shares_outstanding","fetched_at"}, ...]。"""
+    conn.executemany(
+        """
+        INSERT INTO stock_shares_outstanding (code, market, name, shares_outstanding, fetched_at)
+        VALUES (:code, :market, :name, :shares_outstanding, :fetched_at)
+        ON CONFLICT(code) DO UPDATE SET
+            market = excluded.market,
+            name = excluded.name,
+            shares_outstanding = excluded.shares_outstanding,
             fetched_at = excluded.fetched_at
         """,
         rows,

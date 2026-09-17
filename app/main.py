@@ -403,6 +403,7 @@ def fetch_now():
     from app.fetch_bonds import run_latest as run_bonds_latest
     from app.fetch_cpi import run_latest as run_cpi_latest
     from app.fetch_futures import run_latest as run_futures_latest
+    from app.fetch_institutional_stock import run_latest as run_institutional_stock_latest
     from app.fetch_macro import run_latest as run_macro_latest
     from app.fetch_mpt import run_latest as run_mpt_latest
     from app.fetch_txo import run_latest as run_txo_latest
@@ -426,6 +427,13 @@ def fetch_now():
     except Exception as exc:  # noqa: BLE001
         result["_futures"] = f"error: {exc}"
         _log_fetch_line(f"大盤期貨 失敗：{exc}")
+
+    try:
+        result["_institutional_stock"] = run_institutional_stock_latest()
+        _log_fetch_line(f"法人現貨：{result['_institutional_stock']}")
+    except Exception as exc:  # noqa: BLE001
+        result["_institutional_stock"] = f"error: {exc}"
+        _log_fetch_line(f"法人現貨 失敗：{exc}")
 
     try:
         result["_bonds"] = run_bonds_latest()
@@ -471,6 +479,85 @@ def fetch_now():
 
     _log_fetch_line("===== 手動觸發抓取結束 =====")
     return result
+
+
+# ---------------------------------------------------------------------------
+# 法人現貨：個股外資/投信買超佔股本比重排行
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/institutional-stock/ranking")
+def institutional_stock_ranking(top_n: int = 50):
+    """近兩個交易日累計的「外資買超佔股本比重(外本比)」「投信買超佔股本比重(投本比)」
+    排行，並標記兩份排行榜重複上榜的股票。
+
+    原本要抓 Goodinfo 同名排行頁，但該站有 Cloudflare 人機驗證擋住，改用
+    TWSE T86 + TPEx tpex_3insti_daily_trading(見 app/fetch_institutional_stock.py)
+    自己算：某股票近兩個交易日的外資/投信買賣超股數加總，除以已發行股數。
+
+    上市(TWSE)固定看得到最近兩個交易日；上櫃(TPEx)的來源端點只能拿「最新一天」，
+    剛啟用這個功能的第一天只會有一天資料，隔天排程執行後才會自然累積到兩天。
+    LEFT JOIN 對不到股本資料的代碼(通常是ETF/受益憑證，沒有「股本」概念)會被排除，
+    排行只保留一般公司股票。
+    """
+    conn = get_connection()
+    try:
+        date_rows = conn.execute(
+            "SELECT DISTINCT trade_date FROM institutional_stock_daily ORDER BY trade_date DESC LIMIT 2"
+        ).fetchall()
+        dates = [r["trade_date"] for r in date_rows]
+        if not dates:
+            return {"dates": [], "foreign": [], "trust": [], "overlap_codes": []}
+
+        placeholders = ",".join("?" for _ in dates)
+        rows = conn.execute(
+            f"""
+            SELECT i.code, MAX(i.market) AS market, MAX(i.name) AS name,
+                   SUM(i.foreign_net_shares) AS foreign_net, SUM(i.trust_net_shares) AS trust_net,
+                   s.shares_outstanding AS shares_outstanding
+            FROM institutional_stock_daily i
+            LEFT JOIN stock_shares_outstanding s ON s.code = i.code
+            WHERE i.trade_date IN ({placeholders})
+            GROUP BY i.code
+            HAVING shares_outstanding IS NOT NULL AND shares_outstanding > 0
+            """,
+            dates,
+        ).fetchall()
+
+        items = []
+        for r in rows:
+            shares_out = r["shares_outstanding"]
+            foreign_net = r["foreign_net"] or 0
+            trust_net = r["trust_net"] or 0
+            items.append(
+                {
+                    "code": r["code"],
+                    "market": r["market"],
+                    "name": r["name"],
+                    "foreign_net_shares": foreign_net,
+                    "foreign_pct": round(foreign_net / shares_out * 100, 3),
+                    "trust_net_shares": trust_net,
+                    "trust_pct": round(trust_net / shares_out * 100, 3),
+                }
+            )
+
+        foreign_top = sorted(items, key=lambda x: x["foreign_pct"], reverse=True)[:top_n]
+        trust_top = sorted(items, key=lambda x: x["trust_pct"], reverse=True)[:top_n]
+
+        overlap_codes = {x["code"] for x in foreign_top} & {x["code"] for x in trust_top}
+        for x in foreign_top:
+            x["overlap"] = x["code"] in overlap_codes
+        for x in trust_top:
+            x["overlap"] = x["code"] in overlap_codes
+
+        return {
+            "dates": dates,
+            "foreign": foreign_top,
+            "trust": trust_top,
+            "overlap_codes": sorted(overlap_codes),
+        }
+    finally:
+        conn.close()
 
 
 # ---------------------------------------------------------------------------

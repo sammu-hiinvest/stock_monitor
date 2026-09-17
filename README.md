@@ -94,6 +94,39 @@ python scripts/import_historical_zip.py "Active_ETFs_All_Data.zip"
 - 若某檔 ETF 沒有出現在 ZIP 裡（例如本專案的 00988A），會直接略過，維持原本的
   即時爬蟲資料不受影響。
 
+## 法人現貨
+
+近兩個交易日「外資買超佔股本比重(外本比)」「投信買超佔股本比重(投本比)」排行，
+並標記兩份排行榜重複上榜的個股。
+
+- 原始需求是比照 Goodinfo 的「外本比／投本比」排行頁，但該站由 Cloudflare
+  Turnstile 人機驗證保護（直接 curl 回 403 + `Cf-Mitigated: challenge`
+  header，瀏覽器打開也會看到「驗證您是人類」的檢查方塊）。這類人機驗證本專案
+  不會嘗試繞過，因此改用證交所/櫃買中心官方公開 API 自己計算等價指標，資料來源
+  更穩定、也不需要金鑰。
+- 資料來源：
+  - 上市三大法人買賣超日報(T86)：
+    `https://www.twse.com.tw/rwd/zh/fund/T86?date=YYYYMMDD&selectType=ALL&response=json`
+    （支援 `date` 參數回溯查詢；非交易日回傳空清單，不是錯誤）
+  - 上市公司基本資料(股本)：
+    `https://openapi.twse.com.tw/v1/opendata/t187ap03_L`
+    （不支援日期參數，只有最新一版全量快照）
+  - 上櫃三大法人買賣明細：
+    `https://www.tpex.org.tw/openapi/v1/tpex_3insti_daily_trading`
+    （**不支援任何日期參數，只能拿到最新一個交易日**，已在 Swagger UI 確認過）
+  - 上櫃公司基本資料(股本)：
+    `https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_O`
+- 指標算法：取資料庫裡最新的兩個交易日，將每檔個股在這兩天的
+  外資買賣超股數／投信買賣超股數分別加總，再除以該股「已發行股數」
+  得到外本比／投本比（百分比）；ETF/基金等沒有股本資料的代碼會被自動排除。
+- 已知限制：上市(TWSE)因為 T86 支援 `date` 參數，第一次執行就能一口氣回溯
+  補到 2 個交易日；上櫃(TPEx)沒有回溯能力，剛啟用這個功能時只會有 1 天資料，
+  隔天排程再跑一次後才會自然累積成 2 天。
+- 已知坑：`institutional_stock_daily` 的每日「先刪後插」邏輯，DELETE
+  一定要同時用 `trade_date` **和** `market` 篩選 —— 因為上市和上櫃常常
+  是同一個交易日，如果只用 `trade_date` 篩選，後執行的市場(如 TPEx)插入
+  時的 DELETE 會把先前已經寫入、同一天的另一個市場(TWSE)資料整批砍掉。
+
 ## 台指選擇權 (TXO)
 
 - 首次建立資料庫時需手動回溯下載一次（預設抓 2026/09/01~2026/09/04）：

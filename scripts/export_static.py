@@ -94,6 +94,9 @@ def export_api_data(client: TestClient) -> int:
         fetch(f"/api/stocks/{quote(s['code'])}/price")
         fetch(f"/api/stocks/{quote(s['code'])}/events")
 
+    # --- 法人現貨 ---
+    fetch("/api/institutional-stock/ranking?top_n=50")
+
     # --- 台指選擇權 (TXO)：只匯出頁面預設顯示的那組(全部合約、最早~最新日期) ---
     txo_dates = fetch("/api/txo/dates")
     fetch("/api/txo/contract-months")
