@@ -97,14 +97,24 @@ def export_api_data(client: TestClient) -> int:
     # --- 法人現貨 ---
     fetch("/api/institutional-stock/ranking?top_n=50")
 
-    # --- 台指選擇權 (TXO)：只匯出頁面預設顯示的那組(全部合約、最早~最新日期) ---
+    # --- 台指選擇權 (TXO) ---
+    # 日期範圍(start/end)是下拉選單可任意調整的兩個維度，真的窮舉「日期範圍 x
+    # 到期月份」全部組合會爆炸，所以只匯出頁面預設顯示的日期範圍(全部合約、
+    # 最早~最新日期)；但「到期月份」篩選只有 ~10幾個值、不會爆炸，所以額外把
+    # 「預設日期範圍 x 每個到期月份」的組合也匯出，涵蓋使用者不動日期、只切換
+    # 到期月份下拉選單的最常見操作(這也是原本沒做、導致靜態展示站切到期月份
+    # 圖表不會動的那個 bug)。
     txo_dates = fetch("/api/txo/dates")
-    fetch("/api/txo/contract-months")
+    txo_months = fetch("/api/txo/contract-months")
     if txo_dates:
         earliest, latest = txo_dates[-1], txo_dates[0]
         fetch(f"/api/txo/summary?start={earliest}&end={latest}")
         fetch(f"/api/txo/oi-range?start={earliest}&end={latest}")
         fetch(f"/api/txo/compare?date_a={earliest}&date_b={latest}")
+        for m in txo_months:
+            fetch(f"/api/txo/summary?start={earliest}&end={latest}&contract_month={quote(m)}")
+            fetch(f"/api/txo/oi-range?start={earliest}&end={latest}&contract_month={quote(m)}")
+            fetch(f"/api/txo/compare?date_a={earliest}&date_b={latest}&contract_month={quote(m)}")
 
     # --- 大盤期貨 ---
     fut_dates = fetch("/api/futures/dates")
