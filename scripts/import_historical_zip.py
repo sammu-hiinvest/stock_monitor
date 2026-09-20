@@ -43,6 +43,12 @@ from app.db import get_connection, init_db, replace_holdings, session, upsert_fu
 DEFAULT_ZIP = PROJECT_ROOT / "Active_ETFs_All_Data.zip"
 TICKER_RE = re.compile(r"\d{5}[A-Z]?")
 
+# 這些 ETF 的 ZIP「日期」欄位本身就已經是交易基準日(不是公告日)，不能平移。
+# 00991A(復華)：ZIP 的 2026-08-31 那列 NAV=18.02，跟即時爬蟲 actBuyValDate=2026/08/31
+# 的 pnav=18.02 完全一致；用市場收盤價回測 NAV 報酬，不平移時相關係數 0.96、平移
+# 一格後掉到 0.12。錯誤平移會讓走勢圖上的買賣進出點整體早一個交易日。
+NO_SHIFT_TICKERS = {"00991A"}
+
 
 def parse_fund_size(raw: str) -> float | None:
     if not raw:
@@ -149,8 +155,11 @@ def import_zip(zip_path: Path) -> None:
 
             nav_rows.sort(key=lambda r: r["日期"])
             announce_dates = [r["日期"] for r in nav_rows]
-            # 平移一格：第 i 筆資料的交易基準日 = 第 i-1 筆的公告日期
-            trade_date_of = {announce_dates[i]: announce_dates[i - 1] for i in range(1, len(announce_dates))}
+            if ticker in NO_SHIFT_TICKERS:
+                trade_date_of = {d: d for d in announce_dates}
+            else:
+                # 平移一格：第 i 筆資料的交易基準日 = 第 i-1 筆的公告日期
+                trade_date_of = {announce_dates[i]: announce_dates[i - 1] for i in range(1, len(announce_dates))}
 
             upsert_fund(conn, ticker, etf.name, etf.issuer)
 
