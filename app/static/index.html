@@ -804,6 +804,12 @@ function renderCompareChart(series, events) {
         legend: { labels: { color: TXO_INK } },
         tooltip: {
           callbacks: {
+            // scatter 資料點在 Chart.js 預設的標題是 labels[該點在自己資料集內的序號]，
+            // 不是它實際所在的日期(第 N 個減碼點會顯示第 N 個交易日)，這裡改用事件本身的日期。
+            title(items) {
+              const raw = items[0].raw;
+              return raw && raw.meta ? raw.meta.date : items[0].label;
+            },
             label(ctx) {
               const raw = ctx.raw;
               if (raw && raw.meta) {
