@@ -1,1 +1,1 @@
-[{"ticker": "00991A", "fund_name": "主動復華未來50", "date": "2026-04-23", "action": "新增", "shares": 1000.0, "prev_shares": 0, "share_diff": 1000.0}, {"ticker": "00991A", "fund_name": "主動復華未來50", "date": "2026-05-08", "action": "出清", "shares": 0, "prev_shares": 1000.0, "share_diff": -1000.0}]
+[{"ticker": "00991A", "fund_name": "主動復華未來50", "date": "2026-04-24", "action": "新增", "shares": 1000.0, "prev_shares": 0, "share_diff": 1000.0}, {"ticker": "00991A", "fund_name": "主動復華未來50", "date": "2026-05-11", "action": "出清", "shares": 0, "prev_shares": 1000.0, "share_diff": -1000.0}]
