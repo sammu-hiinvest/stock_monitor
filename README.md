@@ -30,7 +30,7 @@ app/
 scripts/
   fetch_daily.py            排程呼叫的進入點 (ETF + TXO 都在這裡一起跑)
   backfill_txo.py           TXO 歷史資料一次性回溯下載
-  setup_scheduled_task.ps1  註冊 Windows 工作排程器 (每交易日 17:00 自動抓取)
+  setup_scheduled_task.ps1  註冊 Windows 工作排程器 (每交易日 20:00 自動抓取)
   run_server.ps1            啟動本機網頁伺服器
 ```
 
@@ -70,8 +70,8 @@ pip install -r requirements.txt
 powershell -ExecutionPolicy Bypass -File .\scripts\setup_scheduled_task.ps1
 ```
 
-會建立一個名為 `TW-ActiveETF-DailyFetch` 的排程任務，每週一到週五 17:00 執行。
-統一投信約 16:30 後才更新申購買回清單，其餘三家投信約在 14:45–16:30 間更新完成，17:00 執行可涵蓋四家都更新的情況。
+會建立一個名為 `TW-ActiveETF-DailyFetch` 的排程任務，每週一到週五 20:00 執行。
+統一投信約 16:30 後才更新申購買回清單，其餘三家投信約在 14:45–16:30 間更新完成，20:00 執行可涵蓋四家都更新、以及證交所/櫃買/期交所收盤資料都已公布的情況。
 
 - 手動測試排程：`schtasks /Run /TN "TW-ActiveETF-DailyFetch"`
 - 查看排程狀態：`schtasks /Query /TN "TW-ActiveETF-DailyFetch" /V`
