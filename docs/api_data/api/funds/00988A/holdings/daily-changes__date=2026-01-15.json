@@ -1,0 +1,1 @@
+{"date": "2026-01-15", "prev_date": "2026-01-14", "added": [{"code": "ASML US", "name": "ASML HOLDING NV-NY REG SHS", "shares": 3000.0, "weight_pct": 1.51}], "removed": [], "increased": [], "decreased": [{"code": "PLTR US", "name": "PALANTIR TECHNOLOGIES INC-A", "shares": 11000.0, "weight_pct": 0.74, "prev_shares": 22500.0, "share_diff": -11500.0}]}

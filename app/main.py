@@ -230,7 +230,8 @@ def fund_stock_list(ticker: str):
         conn.close()
 
 
-@app.get("/api/funds/{ticker}/stocks/{code}/history")
+# code 用 :path：海外持股代碼可能含斜線(例如倫敦上市的 "BA/ LN")，一般的 {code} 遇到 %2F 會 404
+@app.get("/api/funds/{ticker}/stocks/{code:path}/history")
 def fund_stock_history(ticker: str, code: str):
     """回傳單一個股在這檔基金裡，逐日的持股股數與持股權重走勢。
     沒有持有的日期會補 null，讓走勢圖能畫出進出場的斷點。
@@ -341,7 +342,7 @@ def _stock_actions_for_ticker(conn, ticker: str, code: str) -> list[dict]:
     return actions
 
 
-@app.get("/api/stocks/{code}/events")
+@app.get("/api/stocks/{code:path}/events")
 def stock_events(code: str):
     """逐日比對每一檔追蹤 ETF 對這支個股的持股股數變化，彙總到單一個股層面，
     依時間序回傳 新增/加碼/減碼/出清 事件清單 (可能同一天有多檔 ETF 各自的動作)。
@@ -365,7 +366,7 @@ def stock_events(code: str):
         conn.close()
 
 
-@app.get("/api/stocks/{code}/price")
+@app.get("/api/stocks/{code:path}/price")
 def stock_price_history(code: str):
     """個股收盤價走勢 (第一次查詢某代碼時會即時向 TWSE/TPEx 補抓資料並快取)。"""
     conn = get_connection()
