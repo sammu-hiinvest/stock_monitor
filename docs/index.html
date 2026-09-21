@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>山姆台股觀測站</title>
-<script>window.STATIC_MODE = true; window.STATIC_SNAPSHOT_TIME = "2026-09-20 06:56 UTC";</script>
+<script>window.STATIC_MODE = true; window.STATIC_SNAPSHOT_TIME = "2026-09-21 13:00 UTC";</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <style>
   :root {
@@ -110,7 +110,7 @@
 
 <main>
 <div id="etfView">
-  <div class="page-note">資料來源：各投信官網「申購買回清單 (PCF)」，僅追蹤下列 8 檔主動式 ETF。排程更新時間：每個交易日 17:00 自動抓取最新一期資料。</div>
+  <div class="page-note">資料來源：各投信官網「申購買回清單 (PCF)」，僅追蹤下列 8 檔主動式 ETF。排程更新時間：每個交易日 20:00 自動抓取最新一期資料。</div>
 
   <div class="cards" id="cards"></div>
 
@@ -202,7 +202,7 @@
 </div>
 
 <div id="txoView" style="display:none;">
-  <div class="page-note">資料來源：期交所「選擇權每日交易行情下載」，僅採一般交易時段(不含盤後)資料。排程更新時間：每個交易日 17:00 自動抓取最近 5 個交易日資料。注意：到期月份篩選會套用到本頁全部圖表(含上方走勢圖)；靜態展示站(GitHub Pages)只預先產生「預設日期範圍」下各到期月份的資料，若同時更改日期範圍又切換到期月份，可能沒有對應的靜態資料可看。</div>
+  <div class="page-note">資料來源：期交所「選擇權每日交易行情下載」，僅採一般交易時段(不含盤後)資料。排程更新時間：每個交易日 20:00 自動抓取最近 5 個交易日資料。注意：到期月份篩選會套用到本頁全部圖表(含上方走勢圖)；靜態展示站(GitHub Pages)只預先產生「預設日期範圍」下各到期月份的資料，若同時更改日期範圍又切換到期月份，可能沒有對應的靜態資料可看。</div>
 
   <div class="panel">
     <div class="toolbar">
@@ -251,7 +251,7 @@
 </div>
 
 <div id="futuresView" style="display:none;">
-  <div class="page-note">資料來源：期交所「期貨每日交易行情下載」與「三大法人-區分各期貨契約」。排程更新時間：每個交易日 17:00 自動抓取最近 5 個交易日資料。散戶部位為反推估算：市場整體未平倉量(全部到期月份加總、一般盤)減去三大法人(自營商/投信/外資及陸資)合計，並非官方公布數字，僅供參考。</div>
+  <div class="page-note">資料來源：期交所「期貨每日交易行情下載」與「三大法人-區分各期貨契約」。排程更新時間：每個交易日 20:00 自動抓取最近 5 個交易日資料。散戶部位為反推估算：市場整體未平倉量(全部到期月份加總、一般盤)減去三大法人(自營商/投信/外資及陸資)合計，並非官方公布數字，僅供參考。</div>
 
   <div class="panel">
     <div class="toolbar">
@@ -292,7 +292,7 @@
 </div>
 
 <div id="bondsView" style="display:none;">
-  <div class="page-note">資料來源：FRED (美國聖路易聯邦準備銀行公開資料庫)，公開 CSV 下載端點，不需要 API 金鑰。排程更新時間：每個交易日 17:00 自動抓取最近 10 天資料。首次使用需先回溯下載歷史資料（預設抓最近 2 年）：python scripts/backfill_bonds.py。</div>
+  <div class="page-note">資料來源：FRED (美國聖路易聯邦準備銀行公開資料庫)，公開 CSV 下載端點，不需要 API 金鑰。排程更新時間：每個交易日 20:00 自動抓取最近 10 天資料。首次使用需先回溯下載歷史資料（預設抓最近 2 年）：python scripts/backfill_bonds.py。</div>
 
   <div class="cards" id="bondsStatCards"></div>
   <div class="page-note" style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
