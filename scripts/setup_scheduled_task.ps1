@@ -27,13 +27,18 @@ $dataDir = Join-Path $projectRoot "data"
 New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
 $logPath = Join-Path $dataDir "fetch_task.log"
 
+# cmd /c 遇到「開頭是引號、且整串裡引號超過兩個」時會把第一個和最後一個引號吃掉，
+# 指令就變成壞掉的字串(立刻結束、exit code 1、log 完全沒有輸出)。所以整串指令
+# 外面要再包一層引號。這個坑讓排程從建立以來一次都沒有真的跑成功過。
 $action = New-ScheduledTaskAction -Execute "cmd.exe" `
-    -Argument "/c `"$pythonPath`" `"$scriptPath`" >> `"$logPath`" 2>&1" `
+    -Argument "/c `"`"$pythonPath`" `"$scriptPath`" >> `"$logPath`" 2>&1`"" `
     -WorkingDirectory $projectRoot
 
 $trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday,Tuesday,Wednesday,Thursday,Friday -At 20:00
 
-$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -DontStopOnIdleEnd -ExecutionTimeLimit (New-TimeSpan -Minutes 15)
+# 預設「使用電池時不啟動」會讓筆電用電池時整個排程被跳過，所以明確允許；
+# StartWhenAvailable：20:00 電腦沒開機/睡眠時，下次可以執行時自動補跑一次。
+$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -DontStopOnIdleEnd -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 15)
 
 Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings `
     -Description "Daily fetch of TW active ETF PCF data (tw-active-etf-tracker)" -Force
