@@ -6,6 +6,8 @@ API (GET, 免驗證):
 適用：00991A (fundID=ETF23)
 """
 
+from datetime import date
+
 from app.scrapers.common import make_session, parse_any_date, read_json, to_float, today_slash
 
 PCF_URL = "https://www.fhtrust.com.tw/api/ETFPcf"
@@ -19,9 +21,9 @@ _FTYPE_MAP = {
 }
 
 
-def fetch(fund_id: str) -> dict:
+def fetch(fund_id: str, on_date: date | None = None) -> dict:
     session = make_session()
-    today = today_slash()
+    today = today_slash() if on_date is None else on_date.strftime("%Y/%m/%d")
     referer = "https://www.fhtrust.com.tw/ETF/trade_list"
 
     pcf_resp = session.get(

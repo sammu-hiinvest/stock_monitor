@@ -1,3 +1,5 @@
+from datetime import date
+
 from app.scrapers import uni, fuhwa, nomura, capital
 
 DISPATCH = {
@@ -8,8 +10,9 @@ DISPATCH = {
 }
 
 
-def fetch_for(issuer_code: str, fund_code: str) -> dict:
-    """回傳統一格式：
+def fetch_for(issuer_code: str, fund_code: str, on_date: date | None = None) -> dict:
+    """on_date=None 取最新一期；指定日期則為「查詢(公告)日」，回傳前一個交易日的資料。
+    回傳統一格式：
     {
         "date": "YYYY-MM-DD",
         "nav_per_unit": float, "total_units": float, "units_diff": float,
@@ -21,4 +24,4 @@ def fetch_for(issuer_code: str, fund_code: str) -> dict:
     handler = DISPATCH.get(issuer_code)
     if handler is None:
         raise ValueError(f"未知的投信代碼: {issuer_code}")
-    return handler(fund_code)
+    return handler(fund_code, on_date)

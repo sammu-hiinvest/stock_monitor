@@ -16,6 +16,7 @@ OpenSSL 3.2+ 預設開啟的 X509_STRICT 檢查會因此直接判憑證鏈無效
 """
 
 import ssl
+from datetime import date
 
 from requests.adapters import HTTPAdapter
 
@@ -49,12 +50,13 @@ _ASSET_GROUPS = {
 }
 
 
-def fetch(fund_no: str) -> dict:
+def fetch(fund_no: str, on_date: date | None = None) -> dict:
     session = make_session()
     session.mount("https://www.nomurafunds.com.tw", _RelaxedStrictnessAdapter())
     resp = session.post(
         URL,
-        json={"Type": 1, "Keyword": "", "FundNo": fund_no, "Date": today_slash()},
+        json={"Type": 1, "Keyword": "", "FundNo": fund_no,
+              "Date": today_slash() if on_date is None else on_date.strftime("%Y/%m/%d")},
         headers={
             "Content-Type": "application/json; charset=UTF-8",
             "Referer": "https://www.nomurafunds.com.tw/ETFWEB/pcf",

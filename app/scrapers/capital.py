@@ -5,16 +5,18 @@ Body: {"fundId": "<內部代碼>", "date": null}   (date 給 null 即取得最�
 適用：00982A (fundId=399) / 00992A (fundId=500)
 """
 
+from datetime import date
+
 from app.scrapers.common import make_session, parse_any_date, read_json, to_float
 
 URL = "https://www.capitalfund.com.tw/CFWeb/api/etf/buyback"
 
 
-def fetch(fund_id: str) -> dict:
+def fetch(fund_id: str, on_date: date | None = None) -> dict:
     session = make_session()
     resp = session.post(
         URL,
-        json={"fundId": fund_id, "date": None},
+        json={"fundId": fund_id, "date": None if on_date is None else on_date.isoformat()},
         headers={
             "Content-Type": "application/json",
             "Referer": "https://www.capitalfund.com.tw/ETF_Area/Pcf",

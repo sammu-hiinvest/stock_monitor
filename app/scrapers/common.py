@@ -2,13 +2,14 @@
 
 import json
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 
 import requests
 
 from app.config import HTTP_HEADERS
 
 _ASPNET_DATE_RE = re.compile(r"/Date\((\d+)\)/")
+_TAIPEI = timezone(timedelta(hours=8))
 
 
 def make_session() -> requests.Session:
@@ -41,7 +42,9 @@ def parse_any_date(value) -> str | None:
     m = _ASPNET_DATE_RE.match(value)
     if m:
         ms = int(m.group(1))
-        return datetime.utcfromtimestamp(ms / 1000).date().isoformat()
+        # 這些時間戳記是「台灣時間的午夜」(=前一天 16:00 UTC)，一定要換算回 UTC+8 才是正確
+        # 日期；直接當 UTC 解析會早一天(週一變週日)，統一投信的資料日期就是因此整批錯位。
+        return datetime.fromtimestamp(ms / 1000, tz=_TAIPEI).date().isoformat()
 
     # ISO 格式: 2026-08-31T00:00:00...
     if "T" in value:

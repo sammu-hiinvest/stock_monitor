@@ -5,6 +5,8 @@ Body: {"fundCode": "<內部代碼>", "date": "115/09/01" (民國年), "specificD
 適用：00981A / 00403A / 00988A
 """
 
+from datetime import date
+
 from app.scrapers.common import make_session, parse_any_date, read_json, to_float, today_roc
 
 BASE_URL = "https://www.ezmoney.com.tw/ETF/Transaction/GetPCF"
@@ -25,11 +27,14 @@ _PCF_FIELD_MAP = {
 }
 
 
-def fetch(fund_code: str) -> dict:
+def fetch(fund_code: str, on_date: date | None = None) -> dict:
+    """on_date=None 取最新一期；指定日期(回補歷史用)時，該日期是「公告日」，回傳的是前一個
+    交易日收盤的資料，資料實際日期以回應裡的 TranDate 為準。"""
     session = make_session()
+    query_date = today_roc() if on_date is None else f"{on_date.year - 1911}/{on_date.month:02d}/{on_date.day:02d}"
     resp = session.post(
         BASE_URL,
-        json={"fundCode": fund_code, "date": today_roc(), "specificDate": False},
+        json={"fundCode": fund_code, "date": query_date, "specificDate": on_date is not None},
         headers={
             "Content-Type": "application/json; charset=UTF-8",
             "Referer": "https://www.ezmoney.com.tw/ETF/Transaction/PCF",
