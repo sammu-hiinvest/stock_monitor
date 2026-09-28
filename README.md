@@ -396,8 +396,9 @@ https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/accounting/od
   ```
 - 見 `app/fetch_auctions.py`。六張圖(52週/2年/5年/7年/10年/30年，依年期由短到長)
   各是「標售金額(長條，左軸)」+「Bid-to-Cover 比率(折線，右軸)」的雙Y軸混合圖；
-  52週~7年這4張排成 grid(2,2)、由左至右由上至下依年期排列，10年/30年維持原本的
-  單欄全寬排版：
+  全部 6 張共用同一個 `.grid-2col` 容器(2欄，CSS grid 自動換行成3列)，由左至右
+  由上至下依年期排列：52週/2年、5年/7年、10年/30年；window 寬度 < 900px 時自動
+  改回單欄排版。
   - **2/5/7/10/30年期用 `original_security_term` 篩選，不是 `security_term`**：
     加碼發行(reopening) 的標售在 `security_term` 會顯示成「9-Year 10-Month」這種
     剩餘年期字串，只有 `original_security_term` 在整個發行週期都穩定顯示
