@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>山姆台股觀測站</title>
-<script>window.STATIC_MODE = true; window.STATIC_SNAPSHOT_TIME = "2026-09-28 14:27 UTC";</script>
+<script>window.STATIC_MODE = true; window.STATIC_SNAPSHOT_TIME = "2026-09-28 14:39 UTC";</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <style>
   :root {
@@ -1323,8 +1323,63 @@ async function loadBondsStats() {
 // 建好之後才 mutate options + update()，在這個環境下動畫排程有時候會被跳過、
 // 畫布保持空白甚至量到寬度 0，所以這裡改成一開始就把 % 座標軸格式、tooltip
 // 一起放進建構參數，並關掉動畫、建立後立刻同步 draw() 一次。
-function buildPercentLineChart(canvasId, existing, datasets, labels) {
+// 依各條線的「數值大小」自動分配 y / y1 兩條座標軸：把各數列平均值由小排到大，找出相鄰
+// 兩條之間「倍數差最大」的那個缺口，如果缺口 >= 2 倍就從那裡切開，較小的一組畫在左軸(y)、
+// 較大的一組畫在右軸(y1)；沒有明顯落差 (所有數列量級相近) 就全部共用 y。
+// 例如失業率(約4%)跟勞動力參與率(約62%)、就業人口比(約60%)放同一條軸，失業率會被壓成一條
+// 貼底的直線，分開之後兩邊的波動才看得清楚。
+function autoAssignAxes(datasets) {
+  const stats = datasets.map((d, i) => {
+    const vals = d.data.filter(v => v !== null && v !== undefined && !Number.isNaN(v));
+    const mean = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+    return { i, mag: Math.max(Math.abs(mean), 1e-9) };
+  }).sort((a, b) => a.mag - b.mag);
+
+  let splitAt = -1, bestRatio = 1;
+  for (let k = 0; k < stats.length - 1; k++) {
+    const ratio = stats[k + 1].mag / stats[k].mag;
+    if (ratio > bestRatio) { bestRatio = ratio; splitAt = k; }
+  }
+  const axisOf = new Array(datasets.length).fill('y');
+  if (splitAt >= 0 && bestRatio >= 2) {
+    stats.slice(splitAt + 1).forEach(s => { axisOf[s.i] = 'y1'; });
+  }
+  return axisOf;
+}
+
+function buildPercentLineChart(canvasId, existing, datasets, labels, opts = {}) {
   if (existing) existing.destroy();
+
+  const pctTick = (v) => Number(v.toFixed(2)) + '%';
+  const scales = {
+    x: { ticks: { color: TXO_INK }, grid: { color: TXO_GRID } },
+    y: { ticks: { color: TXO_INK, callback: pctTick }, grid: { color: TXO_GRID } },
+  };
+
+  if (opts.autoAxes) {
+    const axisOf = autoAssignAxes(datasets);
+    datasets = datasets.map((d, i) => ({ ...d, yAxisID: axisOf[i] }));
+    if (axisOf.includes('y1')) {
+      // 座標軸標題列出這條軸上有哪幾條線；軸上只有一條線時，刻度與標題直接用該線的顏色，一眼對應
+      const describe = (axisId) => {
+        const members = datasets.filter(d => d.yAxisID === axisId);
+        const color = members.length === 1 ? members[0].borderColor : TXO_INK;
+        return { color, text: members.map(d => d.label).join('／') + ' (%)' };
+      };
+      const left = describe('y'), right = describe('y1');
+      scales.y = {
+        position: 'left',
+        ticks: { color: left.color, callback: pctTick }, grid: { color: TXO_GRID },
+        title: { display: true, text: left.text, color: left.color },
+      };
+      scales.y1 = {
+        position: 'right',
+        ticks: { color: right.color, callback: pctTick }, grid: { drawOnChartArea: false },
+        title: { display: true, text: right.text, color: right.color },
+      };
+    }
+  }
+
   const chart = new Chart(document.getElementById(canvasId), {
     type: 'line',
     data: { labels, datasets },
@@ -1335,10 +1390,7 @@ function buildPercentLineChart(canvasId, existing, datasets, labels) {
         legend: { labels: { color: TXO_INK } },
         tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y === null ? '—' : ctx.parsed.y.toFixed(2) + '%'}` } },
       },
-      scales: {
-        x: { ticks: { color: TXO_INK }, grid: { color: TXO_GRID } },
-        y: { ticks: { color: TXO_INK, callback: (v) => Number(v.toFixed(2)) + '%' }, grid: { color: TXO_GRID } },
-      },
+      scales,
     },
   });
   chart.draw();
@@ -1357,6 +1409,7 @@ async function loadBondsYieldCurve() {
   const refDates = data.ref_dates || {};
   const periods = [
     { key: 'value', label: `最新 (${data.date || '—'})`, color: '#1a2980', fill: true, width: 2.5, dash: [] },
+    { key: 'value_1d', label: `近一日 (${refDates['1d'] || '—'})`, color: '#e53935', fill: false, width: 1.5, dash: [] },
     { key: 'value_1w', label: `近一週 (${refDates['1w'] || '—'})`, color: '#26d0ce', fill: false, width: 1.5, dash: [] },
     { key: 'value_1m', label: `近一月 (${refDates['1m'] || '—'})`, color: '#8e24aa', fill: false, width: 1.5, dash: [4, 3] },
     { key: 'value_3m', label: `近三個月 (${refDates['3m'] || '—'})`, color: '#ef6c00', fill: false, width: 1.5, dash: [2, 2] },
@@ -1389,6 +1442,7 @@ async function loadBondsYieldCurve() {
     <tr>
       <td>${r.label}</td>
       <td class="num">${r.value === null ? '—' : r.value.toFixed(2) + '%'}</td>
+      <td class="num">${chip(r.chg_1d_bps)}</td>
       <td class="num">${chip(r.chg_1w_bps)}</td>
       <td class="num">${chip(r.chg_1m_bps)}</td>
       <td class="num">${chip(r.chg_3m_bps)}</td>
@@ -1397,7 +1451,7 @@ async function loadBondsYieldCurve() {
   document.getElementById('bondsYieldCurveTableWrap').innerHTML = `
     <table>
       <thead><tr>
-        <th>年期</th><th class="num">殖利率</th><th class="num">1週變化</th>
+        <th>年期</th><th class="num">殖利率</th><th class="num">1日變化</th><th class="num">1週變化</th>
         <th class="num">1個月變化</th><th class="num">3個月變化</th><th class="num">YTD變化</th>
       </tr></thead>
       <tbody>${rows}</tbody>
@@ -1709,6 +1763,7 @@ async function loadMacroHouseholdRates() {
     'macroHouseholdRatesChart', state.macroHouseholdRatesChart,
     ids.map((id, i) => ({ label: data[id].label, data: data[id].series.map(r => r.value), borderColor: colors[i], borderWidth: 2, pointRadius: 0, tension: 0.2, fill: false })),
     dates,
+    { autoAxes: true },
   );
 }
 
