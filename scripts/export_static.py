@@ -154,6 +154,10 @@ def export_api_data(client: TestClient) -> int:
 
     # --- Bond Auction ---
     for url in [
+        "/api/bonds/series?ids=AUCTION_52W_AMOUNT,AUCTION_52W_BTC",
+        "/api/bonds/series?ids=AUCTION_2Y_AMOUNT,AUCTION_2Y_BTC",
+        "/api/bonds/series?ids=AUCTION_5Y_AMOUNT,AUCTION_5Y_BTC",
+        "/api/bonds/series?ids=AUCTION_7Y_AMOUNT,AUCTION_7Y_BTC",
         "/api/bonds/series?ids=AUCTION_10Y_AMOUNT,AUCTION_10Y_BTC",
         "/api/bonds/series?ids=AUCTION_30Y_AMOUNT,AUCTION_30Y_BTC",
     ]:

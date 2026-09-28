@@ -368,7 +368,7 @@ PCE 例外維持用 FRED(BEA 沒有對應的公開查詢 API)。
 - 這幾類序列 (`CES`/`LNS` 開頭) 都已經是官方季調後數字，不像 CPI/PPI 需要額外抓
   未季調(NSA)版本；本專案就只存/只用官方慣例引用的 SA 版本。
 
-## Bond Auction (美債標售：10年期公債 Note／30年期公債 Bond)
+## Bond Auction (美債標售：52週國庫券／2/5/7/10年期公債 Note／30年期公債 Bond)
 
 獨立頁面。資料源是美國財政部 **FiscalData 公開 API**「Treasury Securities Auctions
 Data」，不需要金鑰：
@@ -383,12 +383,21 @@ https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/accounting/od
   cd C:\Users\samfa\Claude_Project\tw-active-etf-tracker
   python -m app.fetch_auctions
   ```
-- 見 `app/fetch_auctions.py`。兩張圖各是「標售金額(長條，左軸)」+「Bid-to-Cover
-  比率(折線，右軸)」的雙Y軸混合圖：
-  - **用 `original_security_term` 篩選年期，不是 `security_term`**：加碼發行
-    (reopening) 的標售在 `security_term` 會顯示成「9-Year 10-Month」這種剩餘
-    年期字串，只有 `original_security_term` 在整個發行週期都穩定顯示
+- 見 `app/fetch_auctions.py`。六張圖(52週/2年/5年/7年/10年/30年，依年期由短到長)
+  各是「標售金額(長條，左軸)」+「Bid-to-Cover 比率(折線，右軸)」的雙Y軸混合圖；
+  52週~7年這4張排成 grid(2,2)、由左至右由上至下依年期排列，10年/30年維持原本的
+  單欄全寬排版：
+  - **2/5/7/10/30年期用 `original_security_term` 篩選，不是 `security_term`**：
+    加碼發行(reopening) 的標售在 `security_term` 會顯示成「9-Year 10-Month」這種
+    剩餘年期字串，只有 `original_security_term` 在整個發行週期都穩定顯示
     「10-Year」／「30-Year」，已用實際資料驗證過。
+  - **52週國庫券(T-Bill)是唯一的例外，要改用 `security_term` 篩選**：實測發現
+    `security_type:eq:Bill,original_security_term:eq:52-Week` 會連同同一批標售裡
+    的13週/26週/6週國庫券一起撈出來(這幾檔的 `original_security_term` 欄位在
+    FiscalData 的資料本身就填錯，不是篩選邏輯的問題)；改用 `security_term:eq:52-
+    Week` 篩出來的才全部是真正的52週標售，頻率約每4週一次，跟財政部發行排程吻合。
+    Bill 不會「加碼發行」，所以用 `security_term` 不會有 Note/Bond 那種剩餘年期
+    的問題。
   - **Bid-to-Cover 比率是自己算的**：`total_tendered`(總投標金額) ÷
     `total_accepted`(實際得標金額)，不是直接拿 API 本身的 `bid_to_cover_ratio`
     欄位——已跟該欄位交叉比對過數值一致，自己算是為了計算方式透明、不依賴
@@ -398,7 +407,9 @@ https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/accounting/od
     海外官方帳戶等加碼認購而略高於公告發行額，是更貼近「這次標售真正賣出
     多少」的數字。
   - 存進跟其他債市資料共用的 `bond_series` 表，series_id 用
-    `AUCTION_10Y_AMOUNT`/`AUCTION_10Y_BTC`/`AUCTION_30Y_AMOUNT`/`AUCTION_30Y_BTC`，
+    `AUCTION_52W_AMOUNT`/`AUCTION_52W_BTC`、`AUCTION_2Y_AMOUNT`/`AUCTION_2Y_BTC`、
+    `AUCTION_5Y_AMOUNT`/`AUCTION_5Y_BTC`、`AUCTION_7Y_AMOUNT`/`AUCTION_7Y_BTC`、
+    `AUCTION_10Y_AMOUNT`/`AUCTION_10Y_BTC`、`AUCTION_30Y_AMOUNT`/`AUCTION_30Y_BTC`，
     前端直接沿用既有的通用端點 `/api/bonds/series?ids=...`，沒有新增專屬 API。
 
 ## 資料保存方式

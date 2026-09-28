@@ -433,6 +433,28 @@
 <div id="auctionsView" style="display:none;">
   <div class="page-note">資料來源：美國財政部 FiscalData 公開 API「Treasury Securities Auctions Data」，不需要 API 金鑰。Bid-to-Cover 比率為自行計算(總投標金額 ÷ 實際得標金額)，涵蓋近11年標售紀錄。</div>
 
+  <div class="grid-2col">
+    <div class="panel">
+      <h2>52週國庫券 (52-Week Bill) 標售金額與 Bid-to-Cover 比率</h2>
+      <div class="chart-wrap light-chart-box"><canvas id="auction52wChart"></canvas></div>
+    </div>
+
+    <div class="panel">
+      <h2>2年期公債 (2-Year Note) 標售金額與 Bid-to-Cover 比率</h2>
+      <div class="chart-wrap light-chart-box"><canvas id="auction2yChart"></canvas></div>
+    </div>
+
+    <div class="panel">
+      <h2>5年期公債 (5-Year Note) 標售金額與 Bid-to-Cover 比率</h2>
+      <div class="chart-wrap light-chart-box"><canvas id="auction5yChart"></canvas></div>
+    </div>
+
+    <div class="panel">
+      <h2>7年期公債 (7-Year Note) 標售金額與 Bid-to-Cover 比率</h2>
+      <div class="chart-wrap light-chart-box"><canvas id="auction7yChart"></canvas></div>
+    </div>
+  </div>
+
   <div class="panel">
     <h2>10年期公債 (10-Year Note) 標售金額與 Bid-to-Cover 比率</h2>
     <div class="chart-wrap light-chart-box"><canvas id="auction10yChart"></canvas></div>
@@ -456,7 +478,9 @@ const state = {
   bondsCpiYoyChart: null, bondsCpiMomChart: null, bondsCpiSubYoyChart: null, bondsCpiSubMomChart: null, bondsPceYoyChart: null, bondsPceMomChart: null,
   macroPpiYoyChart: null, macroPpiMomChart: null, macroPayrollChart: null, macroHouseholdRatesChart: null,
   macroUnemployReasonChart: null, macroUnemployDurationChart: null, macroParttimeChart: null,
-  auctionsInitialized: false, auction10yChart: null, auction30yChart: null,
+  auctionsInitialized: false,
+  auction52wChart: null, auction2yChart: null, auction5yChart: null, auction7yChart: null,
+  auction10yChart: null, auction30yChart: null,
   institutionalInitialized: false,
 };
 
@@ -1916,6 +1940,10 @@ async function initInstitutionalView() {
 async function initAuctionsView() {
   if (!state.auctionsInitialized) {
     state.auctionsInitialized = true;
+    await loadAuctionChart('auction52wChart', 'auction52wChart', 'AUCTION_52W_AMOUNT', 'AUCTION_52W_BTC');
+    await loadAuctionChart('auction2yChart', 'auction2yChart', 'AUCTION_2Y_AMOUNT', 'AUCTION_2Y_BTC');
+    await loadAuctionChart('auction5yChart', 'auction5yChart', 'AUCTION_5Y_AMOUNT', 'AUCTION_5Y_BTC');
+    await loadAuctionChart('auction7yChart', 'auction7yChart', 'AUCTION_7Y_AMOUNT', 'AUCTION_7Y_BTC');
     await loadAuctionChart('auction10yChart', 'auction10yChart', 'AUCTION_10Y_AMOUNT', 'AUCTION_10Y_BTC');
     await loadAuctionChart('auction30yChart', 'auction30yChart', 'AUCTION_30Y_AMOUNT', 'AUCTION_30Y_BTC');
   }
