@@ -995,7 +995,7 @@ def _hy_minus_bbb_series(conn) -> list[tuple[str, float]]:
 
 @app.get("/api/bonds/yield-curve")
 def bonds_yield_curve():
-    """最新殖利率曲線，附上跟 1週/1個月/3個月/年初至今 相比的 bps 變化。"""
+    """最新殖利率曲線，附上跟 前一個資料日/1週/1個月/3個月/年初至今 相比的 bps 變化。"""
     conn = get_connection()
     try:
         maturities = sorted(
@@ -1015,6 +1015,12 @@ def bonds_yield_curve():
             return {"date": None, "rows": []}
 
         d = date.fromisoformat(latest_date)
+        # 「近一日」是前一個有資料的交易日 (不是日曆上的前一天，否則週一會拿到週日、找不到資料)
+        prev_row = conn.execute(
+            f"SELECT MAX(obs_date) AS d FROM bond_series WHERE series_id IN ({placeholders}) AND obs_date < ?",
+            [sid for sid, _ in maturities] + [latest_date],
+        ).fetchone()
+        ref_1d = prev_row["d"] if prev_row and prev_row["d"] else None
         ref_1w = (d - timedelta(days=7)).isoformat()
         ref_1m = (d - timedelta(days=30)).isoformat()
         ref_3m = (d - timedelta(days=90)).isoformat()
@@ -1026,6 +1032,7 @@ def bonds_yield_curve():
         rows = []
         for sid, label in maturities:
             _, latest_v = _bond_nearest(conn, sid, latest_date)
+            _, v_1d = _bond_nearest(conn, sid, ref_1d) if ref_1d else (None, None)
             _, v_1w = _bond_nearest(conn, sid, ref_1w)
             _, v_1m = _bond_nearest(conn, sid, ref_1m)
             _, v_3m = _bond_nearest(conn, sid, ref_3m)
@@ -1035,10 +1042,12 @@ def bonds_yield_curve():
                     "series_id": sid,
                     "label": label,
                     "value": latest_v,
+                    "value_1d": v_1d,
                     "value_1w": v_1w,
                     "value_1m": v_1m,
                     "value_3m": v_3m,
                     "value_ytd": v_ytd,
+                    "chg_1d_bps": bps(latest_v, v_1d),
                     "chg_1w_bps": bps(latest_v, v_1w),
                     "chg_1m_bps": bps(latest_v, v_1m),
                     "chg_3m_bps": bps(latest_v, v_3m),
@@ -1047,7 +1056,7 @@ def bonds_yield_curve():
             )
         return {
             "date": latest_date,
-            "ref_dates": {"1w": ref_1w, "1m": ref_1m, "3m": ref_3m, "ytd": ref_ytd},
+            "ref_dates": {"1d": ref_1d, "1w": ref_1w, "1m": ref_1m, "3m": ref_3m, "ytd": ref_ytd},
             "rows": rows,
         }
     finally:
