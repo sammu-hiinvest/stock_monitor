@@ -174,6 +174,29 @@ python scripts/backfill_etf.py --replace 00981A:2026-08-25   # 該區間先刪�
   - 只抓「最新一個交易日」存進 `stock_daily_quote` 表，跟外本比/投本比的兩日
     累計視窗是分開的概念，純粹顯示當天股價表現。
 
+## etf.db 檔案大小 (GitHub 單檔 100MB 上限)
+
+`data/etf.db` 是直接 commit 進 repo 的，GitHub 對單一檔案有 **100MB (104,857,600 bytes)
+硬上限**，超過的話 `git push` 會被拒絕。排程 workflow 是「抓取 → 匯出靜態站 → commit & push」，
+抓取跟匯出都成功、只有最後 push 失敗，所以 Actions 頁面只會看到最後一步的紅叉(日誌需要
+登入才能下載)，很容易誤以為是程式壞掉。
+
+- 已知坑(已處理)：2026-10-13 起 workflow 連續失敗，原因就是 etf.db 在 10/12 長到 104,001,536
+  bytes、離上限只剩 856KB，隔天一筆新資料就超過。當時每個交易日約增加 4MB，主要來源是
+  `institutional_stock_daily`(43MB)：證交所 T86 / 櫃買每天回傳「全部證券」約 18,000 列
+  (含權證、ETF、受益憑證)，但頁面的排行是跟 `stock_shares_outstanding` JOIN 之後才算的，
+  沒有股本資料的代碼本來就會被排除。現在 `app/fetch_institutional_stock.py` 只寫入有
+  股本資料的代碼(`stock_daily_quote` 同理)，每天約 1,860 列，並一次性清掉舊資料中的非股票
+  列後 `VACUUM`，etf.db 從 104MB 降到約 54MB，排行 API 輸出清理前後完全一致。
+- **這只是延後問題，不是根治**：之後每個交易日仍會增加約 1.5~2MB(最大宗是 `txo_daily`，約 32MB
+  且每天約 6,000 列，其次是 `holdings`)，估計約 4~5 週後會再接近上限。workflow 已加上大小檢查
+  步驟：超過 80MB 會出現警告、超過 100MB 會直接標示錯誤原因。根治方式需要取捨：
+  只保留最近 N 天的 TXO 資料、丟掉頁面完全沒用到的盤後(AFTERHOURS)時段列、或改變 etf.db 的儲存
+  方式(Git LFS 的免費頻寬額度撐不住每天多次 checkout)。
+- 本機排程跟 GitHub 排程都會寫 etf.db，`git pull` 遇到二進位衝突時沒辦法自動 merge，
+  做法是以較新的那份為底，把另一份獨有的資料列用 `INSERT OR IGNORE` 併進去(兩邊聯集)，
+  不要直接整檔二選一，否則會丟掉其中一邊獨有的當日資料。
+
 ## 台指選擇權 (TXO)
 
 - 首次建立資料庫時需手動回溯下載一次（預設抓 2026/09/01~2026/09/04）：

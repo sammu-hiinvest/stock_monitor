@@ -37,69 +37,11 @@ def run_latest(lookback_days: int = DEFAULT_LOOKBACK_DAYS) -> dict:
     fetched_at = datetime.now().isoformat(timespec="seconds")
     result: dict = {}
 
-    # --- 上市(TWSE)：回溯 lookback_days 天，逐日嘗試，非交易日跳過 ---
-    twse_days_fetched = []
-    with session() as conn:
-        for offset in range(lookback_days):
-            d = date.today() - timedelta(days=offset)
-            try:
-                rows = fetch_twse_t86(d)
-            except Exception as exc:  # noqa: BLE001 - 單日失敗不影響其他天
-                log.exception("TWSE T86 %s 抓取失敗: %s", d, exc)
-                continue
-            if not rows:
-                continue
-            for r in rows:
-                r["fetched_at"] = fetched_at
-            replace_institutional_stock_daily(conn, d.isoformat(), "TWSE", rows)
-            twse_days_fetched.append(d.isoformat())
-    result["twse_days"] = twse_days_fetched
-
-    # --- 上市個股當日收盤價/漲跌幅(標記漲停/跌停用)：只抓最新一個交易日就好 ---
-    if twse_days_fetched:
-        latest_twse_date = twse_days_fetched[0]  # 迴圈從今天往回找，第一筆就是最新交易日
-        try:
-            quote_rows = fetch_twse_daily_quotes(date.fromisoformat(latest_twse_date))
-            for r in quote_rows:
-                r["fetched_at"] = fetched_at
-            if quote_rows:
-                with session() as conn:
-                    replace_stock_daily_quote(conn, latest_twse_date, "TWSE", quote_rows)
-            result["twse_quote_rows"] = len(quote_rows)
-        except Exception as exc:  # noqa: BLE001
-            log.exception("TWSE 個股當日收盤價抓取失敗: %s", exc)
-            result["twse_quote_error"] = str(exc)
-
-    # --- 上櫃(TPEx)：只能拿最新一個交易日 ---
-    try:
-        tpex_date, tpex_rows = fetch_tpex_daily()
-        if tpex_date and tpex_rows:
-            for r in tpex_rows:
-                r["fetched_at"] = fetched_at
-            with session() as conn:
-                replace_institutional_stock_daily(conn, tpex_date, "TPEX", tpex_rows)
-            result["tpex_date"] = tpex_date
-            result["tpex_rows"] = len(tpex_rows)
-        else:
-            result["tpex_date"] = None
-    except Exception as exc:  # noqa: BLE001
-        log.exception("TPEx 三大法人個股買賣超抓取失敗: %s", exc)
-        result["tpex_error"] = str(exc)
-
-    # --- 上櫃個股當日收盤價/漲跌幅：同樣只能拿最新一個交易日 ---
-    try:
-        quote_tpex_date, quote_tpex_rows = fetch_tpex_daily_quotes()
-        if quote_tpex_date and quote_tpex_rows:
-            for r in quote_tpex_rows:
-                r["fetched_at"] = fetched_at
-            with session() as conn:
-                replace_stock_daily_quote(conn, quote_tpex_date, "TPEX", quote_tpex_rows)
-            result["tpex_quote_rows"] = len(quote_tpex_rows)
-    except Exception as exc:  # noqa: BLE001
-        log.exception("TPEx 個股當日收盤價抓取失敗: %s", exc)
-        result["tpex_quote_error"] = str(exc)
-
-    # --- 股本(已發行股數)：兩邊整包重抓覆寫 ---
+    # --- 股本(已發行股數)：兩邊整包重抓覆寫。要放在最前面，因為下面的法人買賣超/收盤價
+    # 只保留「有股本資料的代碼」(一般上市櫃公司股票)：T86/TPEx 回傳的是全部證券(權證、ETF、
+    # 受益憑證...每天約 18,000 列)，但頁面的排行是跟股本資料 JOIN 之後才算的，沒有股本的
+    # 代碼一律被排除、從來不會顯示。不過濾的話 etf.db 每天多 ~4MB，2026-10 就撞到 GitHub
+    # 單檔 100MB 上限、排程的 push 一直被拒絕。
     shares_rows = []
     try:
         shares_rows.extend(fetch_twse_shares_outstanding())
@@ -116,6 +58,81 @@ def run_latest(lookback_days: int = DEFAULT_LOOKBACK_DAYS) -> dict:
         with session() as conn:
             upsert_shares_outstanding(conn, shares_rows)
     result["shares_outstanding_rows"] = len(shares_rows)
+
+    # 這次股本抓取失敗(空清單)就退回用資料庫裡上次抓到的；連資料庫都沒有才不過濾，
+    # 避免白名單是空的把當天資料全部丟掉。
+    stock_codes = {r["code"] for r in shares_rows}
+    if not stock_codes:
+        with session() as conn:
+            stock_codes = {r[0] for r in conn.execute("SELECT code FROM stock_shares_outstanding")}
+
+    def only_stocks(rows: list[dict]) -> list[dict]:
+        return [r for r in rows if r["code"] in stock_codes] if stock_codes else rows
+
+    # --- 上市(TWSE)：回溯 lookback_days 天，逐日嘗試，非交易日跳過 ---
+    twse_days_fetched = []
+    with session() as conn:
+        for offset in range(lookback_days):
+            d = date.today() - timedelta(days=offset)
+            try:
+                rows = fetch_twse_t86(d)
+            except Exception as exc:  # noqa: BLE001 - 單日失敗不影響其他天
+                log.exception("TWSE T86 %s 抓取失敗: %s", d, exc)
+                continue
+            if not rows:
+                continue
+            rows = only_stocks(rows)
+            for r in rows:
+                r["fetched_at"] = fetched_at
+            replace_institutional_stock_daily(conn, d.isoformat(), "TWSE", rows)
+            twse_days_fetched.append(d.isoformat())
+    result["twse_days"] = twse_days_fetched
+
+    # --- 上市個股當日收盤價/漲跌幅(標記漲停/跌停用)：只抓最新一個交易日就好 ---
+    if twse_days_fetched:
+        latest_twse_date = twse_days_fetched[0]  # 迴圈從今天往回找，第一筆就是最新交易日
+        try:
+            quote_rows = only_stocks(fetch_twse_daily_quotes(date.fromisoformat(latest_twse_date)))
+            for r in quote_rows:
+                r["fetched_at"] = fetched_at
+            if quote_rows:
+                with session() as conn:
+                    replace_stock_daily_quote(conn, latest_twse_date, "TWSE", quote_rows)
+            result["twse_quote_rows"] = len(quote_rows)
+        except Exception as exc:  # noqa: BLE001
+            log.exception("TWSE 個股當日收盤價抓取失敗: %s", exc)
+            result["twse_quote_error"] = str(exc)
+
+    # --- 上櫃(TPEx)：只能拿最新一個交易日 ---
+    try:
+        tpex_date, tpex_rows = fetch_tpex_daily()
+        if tpex_date and tpex_rows:
+            tpex_rows = only_stocks(tpex_rows)
+            for r in tpex_rows:
+                r["fetched_at"] = fetched_at
+            with session() as conn:
+                replace_institutional_stock_daily(conn, tpex_date, "TPEX", tpex_rows)
+            result["tpex_date"] = tpex_date
+            result["tpex_rows"] = len(tpex_rows)
+        else:
+            result["tpex_date"] = None
+    except Exception as exc:  # noqa: BLE001
+        log.exception("TPEx 三大法人個股買賣超抓取失敗: %s", exc)
+        result["tpex_error"] = str(exc)
+
+    # --- 上櫃個股當日收盤價/漲跌幅：同樣只能拿最新一個交易日 ---
+    try:
+        quote_tpex_date, quote_tpex_rows = fetch_tpex_daily_quotes()
+        if quote_tpex_date and quote_tpex_rows:
+            quote_tpex_rows = only_stocks(quote_tpex_rows)
+            for r in quote_tpex_rows:
+                r["fetched_at"] = fetched_at
+            with session() as conn:
+                replace_stock_daily_quote(conn, quote_tpex_date, "TPEX", quote_tpex_rows)
+            result["tpex_quote_rows"] = len(quote_tpex_rows)
+    except Exception as exc:  # noqa: BLE001
+        log.exception("TPEx 個股當日收盤價抓取失敗: %s", exc)
+        result["tpex_quote_error"] = str(exc)
 
     log.info("法人現貨資料更新完成：%s", result)
     return result

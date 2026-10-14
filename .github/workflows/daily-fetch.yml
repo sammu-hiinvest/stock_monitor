@@ -51,6 +51,20 @@ jobs:
         continue-on-error: true
         run: python scripts/export_static.py
 
+      - name: Check etf.db size (GitHub 單檔上限 100MB)
+        # etf.db 超過 100MB(104,857,600 bytes) 時 git push 會被 GitHub 直接拒絕，而且是在最後
+        # 一步才失敗(抓取/匯出都成功)，Actions 頁面只看得到「Commit and push」紅叉。2026-10
+        # 就是這樣連續失敗好幾天。這步驟提早在 80MB 發出警告、超過 100MB 給明確的錯誤訊息。
+        run: |
+          size=$(stat -c%s data/etf.db)
+          echo "data/etf.db = $((size / 1024 / 1024)) MB"
+          if [ "$size" -gt 100000000 ]; then
+            echo "::error::data/etf.db 已超過 GitHub 單檔 100MB 上限，下一步 push 會被拒絕。需要精簡資料或改變儲存方式，見 README「etf.db 檔案大小」。"
+            exit 1
+          elif [ "$size" -gt 80000000 ]; then
+            echo "::warning::data/etf.db 已超過 80MB，接近 GitHub 單檔 100MB 上限，請盡快處理，見 README「etf.db 檔案大小」。"
+          fi
+
       - name: Commit and push data + static site updates
         run: |
           git config user.name "github-actions[bot]"
