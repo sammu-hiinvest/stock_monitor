@@ -1,0 +1,413 @@
+{
+  "TotalPages": -1,
+  "TotalItems": 0,
+  "Entries": {
+    "CId": 8130,
+    "CFundId": "00985A",
+    "CFullName": "野村臺灣增強50主動式ETF",
+    "CFundShortName": "主動野村台灣50",
+    "CPcfdate": "2026-11-11T00:00:00",
+    "CNavDt": "2026-11-10T00:00:00",
+    "CNavDtStr": "2026/11/10",
+    "CAnceTotalAv": 27068926854.0,
+    "CAnceTotalIssues": 1459789000.0,
+    "CAnceIssuesDiff": 1500000.0,
+    "CAnceNav": "18.54",
+    "CAnceEstcValue": 9271520.0,
+    "CCtrlBasketValue": 10211000.0,
+    "CCtrlDiffBasketValue": -611208.0,
+    "CCtrlBasketValueP": 9282792.0,
+    "CCloseDt": null,
+    "CAnceTotalIssuesT1": 0.0,
+    "CEtfindexCurrency": "TWD",
+    "CExRate": 1.0,
+    "CExRateDt": "2026-11-10T00:00:00",
+    "CEtfAcrossTime": "N",
+    "CAnceBaseValue": 500000.0,
+    "Stocks": [
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "2330",
+        "CStockName": "台灣積體電路製造",
+        "CQuantity": 1726000,
+        "CWeightsPct": 14.57
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "3653",
+        "CStockName": "健策精密工業",
+        "CQuantity": 168000,
+        "CWeightsPct": 3.59
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "2383",
+        "CStockName": "台光電子材料",
+        "CQuantity": 219000,
+        "CWeightsPct": 3.53
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "3036",
+        "CStockName": "文曄科技",
+        "CQuantity": 4684000,
+        "CWeightsPct": 3.29
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "6669",
+        "CStockName": "緯穎科技服務",
+        "CQuantity": 526036,
+        "CWeightsPct": 3.26
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "2059",
+        "CStockName": "川湖科技",
+        "CQuantity": 95000,
+        "CWeightsPct": 3.01
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "7769",
+        "CStockName": "鴻勁精密",
+        "CQuantity": 180000,
+        "CWeightsPct": 2.81
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "2308",
+        "CStockName": "台達電子工業",
+        "CQuantity": 595000,
+        "CWeightsPct": 2.8
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "2027",
+        "CStockName": "大成不銹鋼工業",
+        "CQuantity": 13722000,
+        "CWeightsPct": 2.47
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "2345",
+        "CStockName": "智邦科技",
+        "CQuantity": 424000,
+        "CWeightsPct": 2.42
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "2376",
+        "CStockName": "技嘉科技",
+        "CQuantity": 2100000,
+        "CWeightsPct": 2.36
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "3037",
+        "CStockName": "欣興電子",
+        "CQuantity": 739000,
+        "CWeightsPct": 2.26
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "6446",
+        "CStockName": "藥華醫藥",
+        "CQuantity": 460000,
+        "CWeightsPct": 2.18
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "3081",
+        "CStockName": "聯亞光電工業",
+        "CQuantity": 261000,
+        "CWeightsPct": 2.04
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "2317",
+        "CStockName": "鴻海精密工業",
+        "CQuantity": 2225000,
+        "CWeightsPct": 1.99
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "2303",
+        "CStockName": "聯華電子",
+        "CQuantity": 5350000,
+        "CWeightsPct": 1.99
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "2368",
+        "CStockName": "金像電子（股）公司",
+        "CQuantity": 543000,
+        "CWeightsPct": 1.97
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "2603",
+        "CStockName": "長榮海運",
+        "CQuantity": 1981000,
+        "CWeightsPct": 1.87
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "2327",
+        "CStockName": "國巨",
+        "CQuantity": 1182000,
+        "CWeightsPct": 1.82
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "6531",
+        "CStockName": "愛普科技",
+        "CQuantity": 667000,
+        "CWeightsPct": 1.8
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "2454",
+        "CStockName": "聯發科技",
+        "CQuantity": 126000,
+        "CWeightsPct": 1.78
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "2609",
+        "CStockName": "陽明海運",
+        "CQuantity": 8254000,
+        "CWeightsPct": 1.77
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "3008",
+        "CStockName": "大立光電",
+        "CQuantity": 84000,
+        "CWeightsPct": 1.57
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "3711",
+        "CStockName": "日月光投資控股",
+        "CQuantity": 704000,
+        "CWeightsPct": 1.57
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "8046",
+        "CStockName": "南亞電路板",
+        "CQuantity": 421000,
+        "CWeightsPct": 1.56
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "7750",
+        "CStockName": "新代科技",
+        "CQuantity": 278000,
+        "CWeightsPct": 1.55
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "2344",
+        "CStockName": "華邦電子",
+        "CQuantity": 2981000,
+        "CWeightsPct": 1.49
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "3665",
+        "CStockName": "貿聯控股（BizLink Holding In",
+        "CQuantity": 258000,
+        "CWeightsPct": 1.46
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "6442",
+        "CStockName": "光紅建聖",
+        "CQuantity": 329000,
+        "CWeightsPct": 1.38
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "1605",
+        "CStockName": "華新麗華",
+        "CQuantity": 10998000,
+        "CWeightsPct": 1.37
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "6488",
+        "CStockName": "環球晶圓",
+        "CQuantity": 600000,
+        "CWeightsPct": 1.36
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "6285",
+        "CStockName": "啟碁科技",
+        "CQuantity": 1790000,
+        "CWeightsPct": 1.27
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "3017",
+        "CStockName": "奇鋐科技",
+        "CQuantity": 123000,
+        "CWeightsPct": 1.27
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "2408",
+        "CStockName": "南亞科技",
+        "CQuantity": 833000,
+        "CWeightsPct": 1.18
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "3105",
+        "CStockName": "穩懋半導體",
+        "CQuantity": 598000,
+        "CWeightsPct": 1.07
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "3491",
+        "CStockName": "昇達科技",
+        "CQuantity": 208000,
+        "CWeightsPct": 1.0
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "3661",
+        "CStockName": "世芯電子",
+        "CQuantity": 78000,
+        "CWeightsPct": 0.99
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "3231",
+        "CStockName": "緯創資通",
+        "CQuantity": 1538000,
+        "CWeightsPct": 0.97
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "3189",
+        "CStockName": "景碩科技",
+        "CQuantity": 300000,
+        "CWeightsPct": 0.83
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "2377",
+        "CStockName": "微星科技",
+        "CQuantity": 1576000,
+        "CWeightsPct": 0.82
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "6526",
+        "CStockName": "達發科技",
+        "CQuantity": 314000,
+        "CWeightsPct": 0.8
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "2610",
+        "CStockName": "中華航空",
+        "CQuantity": 6115000,
+        "CWeightsPct": 0.52
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "1504",
+        "CStockName": "東元電機",
+        "CQuantity": 2177000,
+        "CWeightsPct": 0.51
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "4904",
+        "CStockName": "遠傳電信",
+        "CQuantity": 1272000,
+        "CWeightsPct": 0.5
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "2412",
+        "CStockName": "中華電信",
+        "CQuantity": 835000,
+        "CWeightsPct": 0.49
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "1216",
+        "CStockName": "統一企業",
+        "CQuantity": 1726000,
+        "CWeightsPct": 0.48
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "1301",
+        "CStockName": "台灣塑膠工業",
+        "CQuantity": 1724000,
+        "CWeightsPct": 0.45
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "1402",
+        "CStockName": "遠東新世紀",
+        "CQuantity": 2942000,
+        "CWeightsPct": 0.3
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "1101",
+        "CStockName": "臺灣水泥",
+        "CQuantity": 2991000,
+        "CWeightsPct": 0.3
+      },
+      {
+        "CtblTradeInfoId": 8130,
+        "CStockCode": "8996",
+        "CStockName": "高力熱處理工業",
+        "CQuantity": 25000,
+        "CWeightsPct": 0.13
+      }
+    ],
+    "Futures": [
+      {
+        "CtblTradeInfoId": 8130,
+        "CFuturesCode": "CDF",
+        "CFuturesName": "台積電期貨",
+        "CQuantity": 95,
+        "CWeightsPct": 1.6,
+        "CContractYm": "2026/11"
+      }
+    ],
+    "Bonds": [],
+    "BondProperty": null,
+    "TradeInfoCurrencies": [
+      {
+        "CId": 0,
+        "CtblTradeInfoId": 8130,
+        "CFromCurrency": "TWD",
+        "CToCurrency": "TWD",
+        "CExchange": 1.0,
+        "CExRateDt": "2026-11-10T00:00:00",
+        "CCreateDt": null
+      }
+    ],
+    "Etfs": [],
+    "Options": [],
+    "CWarning": "",
+    "CCalendarDt": "-",
+    "CBeneficiariesCount": 160486,
+    "CIndexOrProductType": "1",
+    "CAnceTotalIssuesT1Date": null,
+    "CBeneficiariesCountDate": "2026-10-31T00:00:00"
+  },
+  "Message": "",
+  "StatusCode": 0
+}
