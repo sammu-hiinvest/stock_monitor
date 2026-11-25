@@ -226,6 +226,12 @@ python scripts/backfill_etf.py --replace 00981A:2026-08-25   # 該區間先刪�
   對應後端 `/api/txo/summary`、`/api/txo/oi-range`、`/api/txo/compare` 三個
   端點都支援 `contract_month` 參數；留空(全部合約)時同一履約價會加總所有
   到期月份。
+- **下拉選單只列出「尚未到期」的合約**(`/api/txo/contract-months`)：週選/月選合約累積到 34
+  個、其中 8 成已到期，全列不只選單很長，靜態展示站還要替每個合約各匯出 `summary`/`oi-range`/
+  `compare` 3 個 JSON(原本 102 檔)。判斷方式是 `expiry_date` 晚於「資料庫最新交易日與今天
+  兩者較晚者」(到期當天收盤後就算已到期；到期日是 NULL 的保守保留)。這只影響可選清單：
+  「全部合約」的歷史加總照舊包含當時還沒到期、現在已到期的合約，已到期合約的資料也還在
+  資料庫裡(直接帶 `contract_month=202609` 呼叫 API 仍查得到，只是選單不再列出)。
 - 已知坑(已修正)：GitHub Pages 靜態展示站(`scripts/export_static.py`)原本
   只匯出「全部合約」那組 TXO 資料，切換到期月份下拉選單時，前端會打一個
   沒有對應靜態 JSON 檔案的網址、靜默 404、圖表完全不會動(本機用真的

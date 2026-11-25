@@ -592,11 +592,29 @@ def txo_dates():
 
 @app.get("/api/txo/contract-months")
 def txo_contract_months():
-    """回傳所有已下載資料裡出現過的到期月份(週別)，依字串排序 (同年月的月選/週選會排在一起)。"""
+    """回傳「目前尚未到期」的到期月份(週別)，依字串排序 (同年月的月選/週選會排在一起)。
+
+    已到期的合約不會再出現在下拉選單：週選/月選合約數量很多(約 34 個，到期的占 8 成)，全部列出
+    不只選單很長，靜態展示站還要替每個合約各匯出 3 個 JSON 檔。判斷基準是合約的到期日
+    (expiry_date) 晚於「資料庫最新交易日與今天兩者較晚者」——到期當天收盤後(排程在晚上 20:00 才跑)
+    就算已到期。到期日抓不到(NULL)的合約保守地保留。
+
+    只影響這份「可選清單」：不帶 contract_month 的「全部合約」加總是把當天所有合約加起來，
+    歷史走勢仍然會包含當時還沒到期、現在已到期的合約，不會被刪掉。
+    """
     conn = get_connection()
     try:
+        latest = conn.execute("SELECT MAX(trade_date) FROM txo_daily WHERE session = 'REGULAR'").fetchone()[0]
+        ref = max(latest or "", date.today().isoformat())
         rows = conn.execute(
-            "SELECT DISTINCT contract_month FROM txo_daily WHERE session = 'REGULAR' ORDER BY contract_month ASC"
+            """
+            SELECT contract_month FROM txo_daily
+            WHERE session = 'REGULAR'
+            GROUP BY contract_month
+            HAVING COALESCE(MAX(expiry_date), '9999-12-31') > ?
+            ORDER BY contract_month ASC
+            """,
+            (ref,),
         ).fetchall()
         return [r["contract_month"] for r in rows]
     finally:
