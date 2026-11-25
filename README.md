@@ -188,11 +188,23 @@ python scripts/backfill_etf.py --replace 00981A:2026-08-25   # 該區間先刪�
   沒有股本資料的代碼本來就會被排除。現在 `app/fetch_institutional_stock.py` 只寫入有
   股本資料的代碼(`stock_daily_quote` 同理)，每天約 1,860 列，並一次性清掉舊資料中的非股票
   列後 `VACUUM`，etf.db 從 104MB 降到約 54MB，排行 API 輸出清理前後完全一致。
-- **這只是延後問題，不是根治**：之後每個交易日仍會增加約 1.5~2MB(最大宗是 `txo_daily`，約 32MB
-  且每天約 6,000 列，其次是 `holdings`)，估計約 4~5 週後會再接近上限。workflow 已加上大小檢查
-  步驟：超過 80MB 會出現警告、超過 100MB 會直接標示錯誤原因。根治方式需要取捨：
-  只保留最近 N 天的 TXO 資料、丟掉頁面完全沒用到的盤後(AFTERHOURS)時段列、或改變 etf.db 的儲存
-  方式(Git LFS 的免費頻寬額度撐不住每天多次 checkout)。
+- **第二次逼近上限(2026-11-24，已處理)**：上面的修法只延後了約 6 週。11/24 的排程失敗在
+  「Check etf.db size」步驟——etf.db 長到 99.6MB，而當時的檢查把門檻設在 100,000,000 bytes，
+  比 GitHub 真正的上限(104,857,600)低了 4.8MB，等於自己把排程擋下來。這次的處理：
+  - **不再儲存 TXO 盤後(AFTERHOURS)資料**(`app/fetch_txo.py` 的 `STORE_SESSIONS`)。
+    `txo_daily` 是最大宗(58MB，占 66%)，盤後列占了其中 48.5%，但 `app/main.py` 所有 TXO 查詢
+    都是 `session = 'REGULAR'`，沒有任何頁面讀它。已刪除既有的盤後列並 `VACUUM`，etf.db
+    99.6MB → 67.7MB，每個交易日的增量從約 1.6MB 降到約 0.9MB。
+    要恢復保存：把 "AFTERHOURS" 加回 `STORE_SESSIONS`，用 `scripts/backfill_txo.py` 補歷史
+    (期交所可依日期重新下載)；git 歷史裡也還留著舊版資料庫。
+  - **合併兩份資料庫時不要把盤後列帶進來**(否則又會長回去)：`INSERT OR IGNORE` 時加
+    `WHERE session = 'REGULAR'`，bond_series 也要排除日期格式不合法的列。
+  - workflow 的大小檢查改成：超過 85MB 警告、>= 104,000,000 bytes 才中止。門檻只能「比真正的
+    上限略低」，設太保守會讓正常資料也推不上去。
+- **這仍然只是延後問題，不是根治**：每個交易日仍增加約 0.9MB，估計約 6~7 週後(2027-01 中)再次
+  接近上限，屆時 workflow 會先出現警告。根治需要取捨：只保留最近 N 天的 TXO、略過「成交量與
+  未平倉量都是 0」的 REGULAR 列(約占 20%，但「履約價比較」圖的履約價軸可能因此變少)、或改變
+  etf.db 的儲存方式(Git LFS 的免費頻寬額度撐不住每天多次 checkout)。
 - 本機排程跟 GitHub 排程都會寫 etf.db，`git pull` 遇到二進位衝突時沒辦法自動 merge，
   做法是以較新的那份為底，把另一份獨有的資料列用 `INSERT OR IGNORE` 併進去(兩邊聯集)，
   不要直接整檔二選一，否則會丟掉其中一邊獨有的當日資料。
@@ -207,8 +219,9 @@ python scripts/backfill_etf.py --replace 00981A:2026-08-25   # 該區間先刪�
   也可自訂區間 `python scripts/backfill_txo.py 2026-08-01 2026-08-31`（期交所單次查詢區間上限一個月）。
 - 之後 `scripts/fetch_daily.py`（含排程）每次都會順便抓最近 5 天的 TXO 資料並覆寫，
   就算某天排程漏跑，下一次執行也會自動補齊，不需要另外設定排程。
-- 資料表 `txo_daily`：每個 (交易日期, 到期月份, 履約價, 買賣權, 交易時段) 一筆，同時保留
-  「一般」(日盤)與「盤後」(夜盤) 兩種時段；儀表板上的統計一律只採用「一般」時段。
+- 資料表 `txo_daily`：每個 (交易日期, 到期月份, 履約價, 買賣權, 交易時段) 一筆。期交所下載檔
+  同時有「一般」(日盤)與「盤後」(夜盤)，但**目前只儲存「一般」時段**(盤後資料沒有任何頁面用到、
+  又占了資料庫一半的空間，見上面「etf.db 檔案大小」)；儀表板上的統計一律只採用「一般」時段。
 - 到期月份下拉選單會套用到本頁全部三張圖(合併走勢圖/區間軌跡/履約價比較)，
   對應後端 `/api/txo/summary`、`/api/txo/oi-range`、`/api/txo/compare` 三個
   端點都支援 `contract_month` 參數；留空(全部合約)時同一履約價會加總所有
@@ -328,6 +341,26 @@ python scripts/backfill_etf.py --replace 00981A:2026-08-25   # 該區間先刪�
   用它自己預設的 `python-requests/x.x` 才會秒回。所以這個 scraper 用最單純的
   `requests.get()`，不加任何 headers，跟其他 scraper 的寫法不一樣是刻意的，別「順手」
   把它改成統一風格。
+- **重要坑：FRED 偶爾回 HTTP 200 + HTML 頁面，債市頁整頁停更一個多月(2026-10-21 ~ 11-25，已修)**。
+  GitHub Actions 那次抓 FRED 拿到的不是 CSV 而是 HTML，舊版爬蟲不檢查表頭，把 HTML 第一行
+  `<link href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,...">` 用逗號切開，當成
+  「日期=`<link href=…:300`、數值=400」寫進 `bond_series`，24 個序列各一筆垃圾。連鎖反應：
+  1. 垃圾日期排序比 `2026-…` 大，`MAX(obs_date)` 變成 HTML 字串 → `/api/bonds/yield-curve` 的
+     `date.fromisoformat()` 例外 → API 500。這種列不會被之後的 upsert 蓋掉，永遠留著。
+  2. 舊版 `scripts/export_static.py` 一開始就清空 `docs/api_data/`、遇到第一個 500 就整支中止，
+     結果債市/Macros/Bond Auction 三頁的 JSON 全部沒產生(`api_data/bonds`、`api_data/macro`
+     整個資料夾消失，ETF/TXO/期貨幾頁因為排在前面匯出所以沒事)。
+  3. workflow 的匯出步驟是 `continue-on-error: true`，所以 Actions 一路顯示成功，沒人發現。
+  現在三層防線：`fred.py` 驗證表頭必須是 `observation_date,<series_id>`(不是就重試一次、再不行
+  丟錯，由 `fetch_bonds._fetch_all` 逐序列隔離)；`db.upsert_bond_series` 丟棄任何不是
+  `YYYY-MM-DD` 的日期；`export_static.py` 單一端點失敗改成「沿用上次的檔案、記錄失敗、最後以非 0
+  結束」，且是匯出到暫存資料夾、全部跑完才換掉 `api_data/`，workflow 另有一步在 push 完成後
+  依匯出結果讓整個 run 變紅。
+- **Atlanta Fed 升降息機率(MPT)的下載網址搬家**：官網改版後，`mpt_histdata.xlsx` 從
+  `.../Documents/cenfis/market-probability-tracker/` 搬到
+  `.../Documents/research-and-data/data/market-probability-tracker/`，舊網址 404，這張圖停在
+  2026-09-17。`app/fetch_mpt.py` 現在用新網址，且直連 404 時會改從官方頁面
+  (`https://www.atlantafed.org/research-and-data/data/market-probability-tracker`)解析最新連結。
 - **美債10年期 Term Premium 與 ACM Fitted Yield**：資料源是紐約聯邦準備銀行(NY Fed)
   官方公開研究資料頁面「Term Premia」的整包下載連結
   (`https://www.newyorkfed.org/medialibrary/media/research/data_indicators/ACMTermPremium.xls`，
@@ -422,6 +455,18 @@ https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/accounting/od
   全部 6 張共用同一個 `.grid-2col` 容器(2欄，CSS grid 自動換行成3列)，由左至右
   由上至下依年期排列：52週/2年、5年/7年、10年/30年；window 寬度 < 900px 時自動
   改回單欄排版。
+  - **FiscalData 資料集在 2026-10 初停止回填結果，改用 TreasuryDirect 補資料(2026-11-25)**：
+    `auctions_query` 全資料集最新一筆是 10/22 而且 `total_accepted` 全是 null，各年期最後有結果
+    的標售都停在 10/8 以前，標售頁因此整個 10 月底～11 月都沒有新資料。`fetch_auctions.py` 現在在
+    FiscalData 之後，再用 TreasuryDirect 官方 API
+    (`https://www.treasurydirect.gov/TA_WS/securities/auctioned?format=json&type=Note|Bond|Bill`)
+    補上 FiscalData 沒有結果的標售日。**定義已逐筆對帳**：`grandTotalParAwarded` =
+    `total_accepted`、`grandTotalParRecognized` = `total_tendered`、標售日用
+    `competitiveAuctionCloseDate`；2026-01~10 共 353 筆重疊標售，金額與 BTC 全部一致。
+    **不要用 TreasuryDirect 的 `bidToCoverRatio` 欄位**：它是排除 SOMA 加碼認購、以公告發行額
+    計算，跟本頁「總投標 ÷ 總得標」的定義不同(11/24 五年期：2.37 vs 本頁口徑 2.24)。這個 API
+    只回傳最近約 250 筆，補近幾個月的缺口夠用，更早的歷史仍由 FiscalData 提供。
+    每個年期、每個來源各自 try/except，一個失敗不影響其他。
   - **2/5/7/10/30年期用 `original_security_term` 篩選，不是 `security_term`**：
     加碼發行(reopening) 的標售在 `security_term` 會顯示成「9-Year 10-Month」這種
     剩餘年期字串，只有 `original_security_term` 在整個發行週期都穩定顯示

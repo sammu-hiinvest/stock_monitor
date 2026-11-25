@@ -28,6 +28,7 @@
 
 import json
 import os
+import shutil
 import sys
 from datetime import datetime, timezone
 from urllib.parse import quote, unquote
@@ -41,11 +42,14 @@ from app.main import app  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOCS_DIR = os.path.join(ROOT, "docs")
 API_DATA_DIR = os.path.join(DOCS_DIR, "api_data")
+# 先完整匯出到這個暫存資料夾，全部跑完才換掉 api_data/；匯出中途就算整個程式崩潰，
+# 已發布的 api_data/ 也不會被動到。
+NEW_DIR = API_DATA_DIR + ".new"
 
 CHART_JS_TAG = '<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>'
 
 
-def _static_path(url: str) -> str:
+def _static_path(url: str, base: str | None = None) -> str:
     """跟前端 index.html 的 staticApiPath() 邏輯必須完全對應，兩邊路徑算法不一致
     的話靜態頁面在瀏覽器上會全部 404，看起來卻不會有任何 Python 端的錯誤。
 
@@ -53,18 +57,39 @@ def _static_path(url: str) -> str:
     會先把路徑 percent-decode 一輪才去對應實際檔案，如果檔名裡還留著編碼過的
     %XX，兩邊就會對不起來。
     """
+    base = base or API_DATA_DIR
     if "?" in url:
         route, query = url.split("?", 1)
         route = unquote(route)
-        return os.path.join(API_DATA_DIR, route.lstrip("/") + "__" + query + ".json")
-    return os.path.join(API_DATA_DIR, unquote(url).lstrip("/") + ".json")
+        return os.path.join(base, route.lstrip("/") + "__" + query + ".json")
+    return os.path.join(base, unquote(url).lstrip("/") + ".json")
 
 
-def _fetch_and_save(client: TestClient, url: str, counter: list[int]):
-    resp = client.get(url)
-    resp.raise_for_status()
-    data = resp.json()
-    path = _static_path(url)
+def _fetch_and_save(client: TestClient, url: str, counter: list[int], failures: list[tuple[str, str, bool]]):
+    """呼叫一個端點並存成靜態 JSON。單一端點失敗(500/例外)不會中止整個匯出：記錄下來，
+    並盡量沿用上一次成功匯出的舊檔案(避免已發布的頁面因為一個端點暫時壞掉就整頁消失)，
+    最後由 main() 彙整失敗清單、讓整支腳本以非 0 結束碼收尾，Actions 才看得到紅叉。
+
+    過去的寫法是第一個端點出錯就整支腳本中止、而且一開始就已經把整個 api_data/ 清空，
+    2026-10-21 債市資料庫被污染後 /api/bonds/yield-curve 開始 500，結果債市/Macros/Bond
+    Auction 三頁的 JSON 全部沒產生(但 workflow 因為 continue-on-error 仍顯示成功)，靜態站
+    這三頁因此停更超過一個月。
+    """
+    path = _static_path(url, NEW_DIR)
+    try:
+        resp = client.get(url)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:  # noqa: BLE001 - 單一端點失敗不影響其他端點
+        old_path = _static_path(url, API_DATA_DIR)
+        kept = os.path.exists(old_path)
+        failures.append((url, f"{type(exc).__name__}: {str(exc)[:160]}", kept))
+        if not kept:
+            return None
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        shutil.copy2(old_path, path)
+        with open(old_path, "r", encoding="utf-8") as f:
+            return json.load(f)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False)
@@ -72,24 +97,24 @@ def _fetch_and_save(client: TestClient, url: str, counter: list[int]):
     return data
 
 
-def export_api_data(client: TestClient) -> int:
+def export_api_data(client: TestClient, failures: list[tuple[str, str, bool]]) -> int:
     n = [0]
-    fetch = lambda url: _fetch_and_save(client, url, n)  # noqa: E731
+    fetch = lambda url: _fetch_and_save(client, url, n, failures)  # noqa: E731
 
     # --- ETF 總覽 / 個股跨ETF比較 ---
-    funds = fetch("/api/funds")
+    funds = fetch("/api/funds") or []
     for f in funds:
         ticker = f["ticker"]
         fetch(f"/api/funds/{ticker}/summary?days=365")
-        dates = fetch(f"/api/funds/{ticker}/dates")
-        stocks = fetch(f"/api/funds/{ticker}/stocks")
+        dates = fetch(f"/api/funds/{ticker}/dates") or []
+        stocks = fetch(f"/api/funds/{ticker}/stocks") or []
         for d in dates:
             fetch(f"/api/funds/{ticker}/holdings?date={d}")
             fetch(f"/api/funds/{ticker}/holdings/daily-changes?date={d}")
         for s in stocks:
             fetch(f"/api/funds/{ticker}/stocks/{quote(s['code'])}/history")
 
-    all_stocks = fetch("/api/stocks")
+    all_stocks = fetch("/api/stocks") or []
     for s in all_stocks:
         fetch(f"/api/stocks/{quote(s['code'])}/price")
         fetch(f"/api/stocks/{quote(s['code'])}/events")
@@ -104,8 +129,8 @@ def export_api_data(client: TestClient) -> int:
     # 「預設日期範圍 x 每個到期月份」的組合也匯出，涵蓋使用者不動日期、只切換
     # 到期月份下拉選單的最常見操作(這也是原本沒做、導致靜態展示站切到期月份
     # 圖表不會動的那個 bug)。
-    txo_dates = fetch("/api/txo/dates")
-    txo_months = fetch("/api/txo/contract-months")
+    txo_dates = fetch("/api/txo/dates") or []
+    txo_months = fetch("/api/txo/contract-months") or []
     if txo_dates:
         earliest, latest = txo_dates[-1], txo_dates[0]
         fetch(f"/api/txo/summary?start={earliest}&end={latest}")
@@ -117,7 +142,7 @@ def export_api_data(client: TestClient) -> int:
             fetch(f"/api/txo/compare?date_a={earliest}&date_b={latest}&contract_month={quote(m)}")
 
     # --- 大盤期貨 ---
-    fut_dates = fetch("/api/futures/dates")
+    fut_dates = fetch("/api/futures/dates") or []
     if fut_dates:
         for d in fut_dates:
             fetch(f"/api/futures/table?date={d}")
@@ -185,21 +210,33 @@ def export_html(snapshot_time: str) -> None:
         f.write(html)
 
 
-def main():
-    # 每次重新匯出前先清空舊的 api_data/，避免持股名單變動(某支股票被剔除、某個
-    # 到期日不再是「最新」)之後，舊的靜態 JSON 檔案一直留著沒被清掉、長期累積成
-    # 一堆再也用不到的孤兒檔案。
-    import shutil
-
-    shutil.rmtree(API_DATA_DIR, ignore_errors=True)
+def main() -> int:
+    # 每次重新匯出時，api_data/ 是整個換新(不是疊加)，避免持股名單變動(某支股票被剔除、
+    # 某個到期日不再是「最新」)之後，舊的靜態 JSON 檔案一直留著沒被清掉、長期累積成一堆
+    # 再也用不到的孤兒檔案。但是是「匯出到暫存資料夾、全部跑完才換掉」，不是一開始就清空。
+    shutil.rmtree(NEW_DIR, ignore_errors=True)
+    failures: list[tuple[str, str, bool]] = []
 
     with TestClient(app) as client:
-        n = export_api_data(client)
+        n = export_api_data(client, failures)
+
+    shutil.rmtree(API_DATA_DIR, ignore_errors=True)
+    os.replace(NEW_DIR, API_DATA_DIR)
+
     snapshot_time = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     export_html(snapshot_time)
     print(f"已匯出 {n} 個靜態 JSON 檔案到 {API_DATA_DIR}")
     print(f"已產生 {os.path.join(DOCS_DIR, 'index.html')} (快照時間 {snapshot_time})")
 
+    if failures:
+        print(f"\n!! 有 {len(failures)} 個端點匯出失敗 (標 [沿用舊檔] 的表示保留了上一次的版本，其餘就是這次沒有資料)：")
+        for url, reason, kept in failures[:25]:
+            print(f"  {'[沿用舊檔]' if kept else '[缺檔]    '} {url}  ->  {reason}")
+        if len(failures) > 25:
+            print(f"  ... 另外還有 {len(failures) - 25} 個")
+        return 1
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

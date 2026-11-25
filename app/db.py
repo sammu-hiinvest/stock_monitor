@@ -4,11 +4,15 @@ SQLite 存取層。資料庫只有兩張主要表格：
 - holdings：每檔基金、每個交易日的持股明細 (股票/期貨/其他資產)
 """
 
+import logging
 import os
+import re
 import sqlite3
 from contextlib import contextmanager
 
 from app.config import DB_PATH, DATA_DIR
+
+_ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS funds (
@@ -301,13 +305,22 @@ def upsert_bond_series(conn: sqlite3.Connection, series_id: str, rows: list[dict
     """rows 為 [{"obs_date","value","fetched_at"}, ...]；用 upsert 而非整段刪除重建，
     因為每天只補最近 lookback_days 天，不能把更早的歷史資料一起清掉。
     """
+    # 最後一道防線：任何來源送進來的日期都必須是 ISO 格式。垃圾日期(例如被當成 CSV 解析的
+    # HTML 錯誤頁)排序會比所有正常日期大，一旦寫進去，MAX(obs_date) 就會變成垃圾字串、
+    # 債市/Macros 的 API 全部 500，而且這種列不會被後續的 upsert 覆蓋、會永遠留在資料庫裡。
+    good = [r for r in rows if isinstance(r.get("obs_date"), str) and _ISO_DATE_RE.match(r["obs_date"])]
+    if len(good) != len(rows):
+        bad = next(r["obs_date"] for r in rows if r not in good)
+        logging.getLogger("db").warning(
+            "bond_series %s: 丟棄 %d 筆日期格式不合法的資料 (例如 %r)", series_id, len(rows) - len(good), str(bad)[:60]
+        )
     conn.executemany(
         """
         INSERT INTO bond_series (series_id, obs_date, value, fetched_at)
         VALUES (:series_id, :obs_date, :value, :fetched_at)
         ON CONFLICT(series_id, obs_date) DO UPDATE SET value = excluded.value, fetched_at = excluded.fetched_at
         """,
-        [{**r, "series_id": series_id} for r in rows],
+        [{**r, "series_id": series_id} for r in good],
     )
 
 

@@ -10,11 +10,19 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 log = logging.getLogger("fetch_txo")
 
 
+# 只存這些交易時段。期交所下載檔同時有「一般」(日盤)與「盤後」(夜盤)，但頁面所有查詢都是
+# `session = 'REGULAR'`，盤後資料(約占 txo_daily 的一半)從來沒有被任何地方讀取，卻讓 etf.db
+# 每個交易日多 ~0.5MB，2026-11 逼近 GitHub 單檔 100MB 上限、排程的 push 被擋。
+# 要恢復保存盤後資料：把 "AFTERHOURS" 加回這個集合，再用 scripts/backfill_txo.py 補歷史。
+STORE_SESSIONS = {"REGULAR"}
+
+
 def _store(grouped: dict[str, list[dict]]) -> dict[str, int]:
     fetched_at = datetime.now().isoformat(timespec="seconds")
     result = {}
     with session() as conn:
         for trade_date, rows in grouped.items():
+            rows = [r for r in rows if r["session"] in STORE_SESSIONS]
             for r in rows:
                 r["fetched_at"] = fetched_at
             replace_txo_daily(conn, trade_date, rows)

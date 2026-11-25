@@ -42,14 +42,35 @@ from app.db import init_db, session, upsert_mpt_probability
 
 log = logging.getLogger("fetch_mpt")
 
+MPT_PAGE_URL = "https://www.atlantafed.org/research-and-data/data/market-probability-tracker"
+# 2026 年 Atlanta Fed 改版網站，檔案從 .../Documents/cenfis/market-probability-tracker/ 搬到
+# .../Documents/research-and-data/data/market-probability-tracker/，舊網址變成 404，債市頁的
+# 升降息機率圖因此停在 2026-09-17 沒人發現。直連網址失效時改從官方頁面解析最新的下載連結。
 MPT_URL = (
     "https://www.atlantafed.org/-/media/Project/Atlanta/FRBA/Documents/"
-    "cenfis/market-probability-tracker/mpt_histdata.xlsx"
+    "research-and-data/data/market-probability-tracker/mpt_histdata.xlsx"
 )
+
+
+def _resolve_download_url() -> str:
+    """從官方 Market Probability Tracker 頁面找 mpt_histdata.xlsx 的下載連結。"""
+    import re
+    from urllib.parse import urljoin
+
+    page = requests.get(MPT_PAGE_URL, timeout=60, headers={"User-Agent": "Mozilla/5.0"})
+    page.raise_for_status()
+    m = re.search(r'href="([^"]+mpt_histdata\.xlsx[^"]*)"', page.text, flags=re.I)
+    if not m:
+        raise RuntimeError(f"在 {MPT_PAGE_URL} 找不到 mpt_histdata.xlsx 的下載連結，網站可能又改版了")
+    return urljoin(MPT_PAGE_URL, m.group(1))
 
 
 def _download_and_process() -> list[dict]:
     resp = requests.get(MPT_URL, timeout=60)
+    if resp.status_code == 404:
+        url = _resolve_download_url()
+        log.warning("MPT_URL 已失效(404)，改用官方頁面上的連結：%s", url)
+        resp = requests.get(url, timeout=60)
     resp.raise_for_status()
 
     df = pd.read_excel(io.BytesIO(resp.content), sheet_name="DATA", engine="openpyxl")
